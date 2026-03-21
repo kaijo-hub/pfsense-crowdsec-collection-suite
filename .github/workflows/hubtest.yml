@@ -1,55 +1,55 @@
 name: CrowdSec HubTest
 
 on:
-push:
-pull_request:
+  push:
+  pull_request:
 
 jobs:
-hubtest:
-runs-on: ubuntu-latest
+  hubtest:
+    runs-on: ubuntu-latest
 
-steps:
-  - name: Checkout Repo
-    uses: actions/checkout@v4
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
 
-  - name: Install dependencies
-    run: |
-      sudo apt-get update
-      sudo apt-get install -y git rsync
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git rsync wget
 
-  - name: Install CrowdSec (binary)
-    run: |
-      wget https://github.com/crowdsecurity/crowdsec/releases/latest/download/crowdsec-release.tgz
-      tar -xzf crowdsec-release.tgz
-      sudo cp crowdsec-*/crowdsec /usr/local/bin/
-      sudo cp crowdsec-*/cscli /usr/local/bin/
+      - name: Install CrowdSec (binary)
+        run: |
+          wget https://github.com/crowdsecurity/crowdsec/releases/latest/download/crowdsec-release.tgz
+          tar -xzf crowdsec-release.tgz
+          sudo cp crowdsec-*/crowdsec /usr/local/bin/
+          sudo cp crowdsec-*/cscli /usr/local/bin/
 
-  - name: Init Hub
-    run: |
-      mkdir -p ~/hub
-      cscli hub update
+      - name: Init Hub
+        run: |
+          mkdir -p ~/hub
+          sudo cscli hub update
 
-      # Copy hub content to ~/hub
-      sudo cp -r /etc/crowdsec/hub/* ~/hub/
-      sudo chown -R $USER:$USER ~/hub
+          # Copy hub content to ~/hub
+          sudo cp -r /etc/crowdsec/hub/* ~/hub/
+          sudo chown -R $USER:$USER ~/hub
 
-  - name: Inject repo parsers & scenarios
-    run: |
-      rsync -av parsers/ ~/hub/parsers/
-      rsync -av scenarios/ ~/hub/scenarios/
-      rsync -av collections/ ~/hub/collections/
+      - name: Inject repo parsers & scenarios
+        run: |
+          rsync -av parsers/ ~/hub/parsers/
+          rsync -av scenarios/ ~/hub/scenarios/
+          rsync -av collections/ ~/hub/collections/
 
-  - name: Prepare tests
-    run: |
-      mv ~/hub/.tests ~/hub/.tests.orig
-      ln -s $GITHUB_WORKSPACE/.tests ~/hub/.tests
-      cp ~/hub/.tests.orig/template_* ~/hub/.tests/
+      - name: Prepare tests
+        run: |
+          mv ~/hub/.tests ~/hub/.tests.orig
+          ln -s $GITHUB_WORKSPACE/.tests ~/hub/.tests
+          cp ~/hub/.tests.orig/template_* ~/hub/.tests/
 
-  - name: Clean runtime/cache
-    run: |
-      rm -rf ~/hub/.tests/*/runtime || true
-      rm -rf ~/hub/.tests/*/.cache || true
+      - name: Clean runtime/cache
+        run: |
+          rm -rf ~/hub/.tests/*/runtime || true
+          rm -rf ~/hub/.tests/*/.cache || true
 
-  - name: Run HubTests
-    run: |
-      cscli hubtest run --all --hub ~/hub --report-success
+      - name: Run HubTests
+        run: |
+          cscli hubtest run --all --hub ~/hub --report-success
