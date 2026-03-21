@@ -1,0 +1,33 @@
+type: collection
+name: kaijo/pfsense-crowdsec-collection-suite
+description: >
+  CrowdSec Collection Suite for pfSense CE and pfSense Plus, including
+  pfSense-specific SSH parsers (RFC3164/RFC5424 Logformat) and SSH security
+  scenarios with full hubtest validation. Designed for FreeBSD/OpenSSH log
+  variants used by pfSense.
+
+author: kaijo
+license: MIT
+version: 0.1.6
+
+parsers:
+  - kaijo/sshd-logs-rfc3164
+  - kaijo/sshd-logs-rfc5424
+
+scenarios:
+  - kaijo/ssh-bruteforce-fast-pfsense
+  - kaijo/ssh-bruteforce-slow-pfsense
+  - kaijo/ssh-conn-closed-scan-pfsense
+  - kaijo/ssh-connection-flood-pfsense
+  - kaijo/ssh-disconnect-abuse-pfsense
+  - kaijo/ssh-invalid-user-scan-pfsense
+  - kaijo/ssh-success-after-bruteforce-pfsense
+  - kaijo/ssh-timeout-before-auth-pfsense
+
+tags:
+  - pfSense
+  - FreeBSD
+  - SSH
+  - Security
+  - Firewall
+  - CrowdSec

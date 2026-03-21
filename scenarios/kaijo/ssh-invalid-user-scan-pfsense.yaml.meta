@@ -1,0 +1,27 @@
+type: scenario
+name: kaijo/ssh-invalid-user-scan-pfsense
+description: >
+  Detects SSH invalid-user scanning activity on pfSense systems, where attackers
+  enumerate usernames by attempting logins with non-existent accounts. Fully
+  aligned with FreeBSD/OpenSSH log formats used by pfSense CE/Plus.
+
+author: kaijo
+license: MIT
+version: 0.1.6
+
+labels:
+  service: sshd
+  platform: pfSense
+  attack_type: scan
+  scan_type: invalid_user
+
+tags:
+  - pfSense
+  - SSH
+  - Security
+  - Scan
+  - FreeBSD
+
+events:
+  - invalid_user
+  - authentication_failed

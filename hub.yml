@@ -1,0 +1,8 @@
+type: repository
+name: kaijo/pfsense-crowdsec-collection-suite
+description: "CrowdSec Collection Suite for pfSense CE and pfSense Plus, including pfSense-specific parsers and security scenarios with full hubtest validation."
+author: kaijo
+license: MIT
+
+collections:
+  - kaijo/pfsense-crowdsec-collection-suite

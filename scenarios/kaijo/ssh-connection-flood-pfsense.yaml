@@ -1,0 +1,24 @@
+type: leaky
+name: kaijo/ssh-connection-flood-pfsense
+description: "Detect SSH connection floods on pfSense"
+
+filter: |
+  evt.Meta.service == "ssh"
+  && evt.Meta.log_type == "ssh_closed"
+
+groupby: evt.Meta.source_ip
+distinct: evt.Parsed.src_port
+capacity: 10
+leakspeed: 5s
+blackhole: 1m
+reprocess: true
+
+labels:
+  service: ssh
+  remediation: true
+  confidence: 3
+  spoofable: 0
+  classification:
+    - attack.T1595
+  behavior: "ssh:scan"
+  label: "SSH Connection Flood (pfSense)"

@@ -1,0 +1,12 @@
+parsers:
+    - crowdsecurity/syslog-logs
+    - parsers/s01-parse/kaijo/sshd-logs-rfc5424.yaml
+    - parsers/s01-parse/kaijo/sshd-logs-rfc3164.yaml
+    - crowdsecurity/dateparse-enrich
+    - crowdsecurity/geoip-enrich
+scenarios:
+    - scenarios/kaijo/ssh-invalid-user-scan-pfsense.yaml
+postoverflows:
+    - ""
+log_file: ssh-invalid-user-scan-mixed.log
+log_type: syslog

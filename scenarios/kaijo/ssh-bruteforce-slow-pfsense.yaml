@@ -1,0 +1,30 @@
+type: leaky
+name: kaijo/ssh-bruteforce-slow-pfsense
+description: "Detect slow SSH bruteforce attempts on pfSense"
+filter: |
+  evt.Meta.log_type in [
+    "ssh_invalid_user",
+    "ssh_illegal_user",
+    "ssh_pam_auth_error",
+    "ssh_permission_denied",
+    "ssh_auth_fail",
+    "ssh_failed_auth",
+    "ssh_timeout_before_auth"
+  ]
+  && evt.Meta.service in ["ssh", "sshd"]
+
+groupby: evt.Meta.source_ip
+capacity: 12
+leakspeed: 10m
+blackhole: 30m
+reprocess: true
+
+labels:
+  service: ssh
+  remediation: true
+  confidence: 3
+  spoofable: 0
+  classification:
+    - attack.T1110
+  behavior: "ssh:bruteforce"
+  label: "SSH Slow Bruteforce (pfSense)"

@@ -1,0 +1,6 @@
+<134>1 2026-03-07T18:09:01.000000+01:00 routeme sshd-session 50001 - - Connection closed by 203.0.113.50 port 51001
+<134>1 2026-03-07T18:09:05.000000+01:00 routeme sshd-session 50002 - - Connection closed by 203.0.113.50 port 51002
+<134>1 2026-03-07T18:09:08.000000+01:00 routeme sshd-session 50003 - - Connection closed by 203.0.113.50 port 51003
+<134>1 2026-03-07T18:09:12.000000+01:00 routeme sshd 50004 - - Connection closed by 203.0.113.50 port 51004
+<134>1 2026-03-07T18:09:18.000000+01:00 routeme sshd 50005 - - Connection closed by 203.0.113.50 port 51005
+<134>1 2026-03-07T18:09:19.000000+01:00 routeme sshd 50006 - - Connection closed by 203.0.113.50 port 51006

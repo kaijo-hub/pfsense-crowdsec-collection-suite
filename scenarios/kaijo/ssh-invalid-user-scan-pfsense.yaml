@@ -1,0 +1,24 @@
+type: leaky
+name: kaijo/ssh-invalid-user-scan-pfsense
+description: "Detect repeated invalid SSH usernames on pfSense"
+
+filter: |
+  evt.Meta.service == "ssh"
+  && evt.Meta.log_type == "ssh_invalid_user"
+
+groupby: evt.Meta.source_ip
+distinct: evt.Meta.target_user
+capacity: 5
+leakspeed: 30s
+blackhole: 2m
+reprocess: true
+
+labels:
+  service: ssh
+  remediation: true
+  confidence: 3
+  spoofable: 0
+  classification:
+    - attack.T1589
+  behavior: "ssh:invalid-user-scan"
+  label: "SSH Invalid User Scan (pfSense)"

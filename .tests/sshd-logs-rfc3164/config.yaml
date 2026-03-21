@@ -1,0 +1,11 @@
+parsers:
+  - crowdsecurity/syslog-logs
+  - parsers/s01-parse/kaijo/sshd-logs-rfc3164.yaml
+  - crowdsecurity/dateparse-enrich
+  - crowdsecurity/geoip-enrich
+scenarios:
+    - ""
+postoverflows:
+    - ""
+log_file: sshd-logs-rfc3164.log
+log_type: syslog

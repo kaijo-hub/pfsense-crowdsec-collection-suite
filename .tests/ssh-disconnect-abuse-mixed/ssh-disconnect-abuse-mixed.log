@@ -1,0 +1,6 @@
+Mar  8 18:30:20 routeme sshd-session[23210]: error: Received disconnect from 192.168.11.16 port 62759:13: Unable to authenticate [preauth]
+Mar  8 18:30:21 routeme sshd-session[23211]: error: Received disconnect from 192.168.11.16 port 62760:13: Unable to authenticate [preauth]
+Mar  8 18:30:22 routeme sshd[23212]: error: Received disconnect from 192.168.11.16 port 62761:13: Unable to authenticate [preauth]
+<134>1 2026-03-08T18:30:23.000000+01:00 routeme sshd-session 23213 - - error: Received disconnect from 192.168.11.16 port 62762:13: Unable to authenticate [preauth]
+<134>1 2026-03-08T18:30:24.000000+01:00 routeme sshd-session 23214 - - error: Received disconnect from 192.168.11.16 port 62763:13: Unable to authenticate [preauth]
+<134>1 2026-03-08T18:30:25.000000+01:00 routeme sshd 23215 - - error: Received disconnect from 192.168.11.16 port 62764:13: Unable to authenticate [preauth]

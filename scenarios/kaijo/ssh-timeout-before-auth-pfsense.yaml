@@ -1,0 +1,26 @@
+type: leaky
+name: kaijo/ssh-timeout-before-auth-pfsense
+description: "Detect repeated SSH timeouts before authentication on pfSense"
+
+filter: |
+  evt.Meta.service == "ssh"
+  && evt.Meta.log_type == "ssh_timeout_before_auth"
+  && evt.Meta.source_ip != ""
+  && evt.Meta.destination_ip != ""
+  
+groupby: evt.Meta.source_ip
+capacity: 8
+leakspeed: 30s
+blackhole: 2m
+duration: 5m
+reprocess: true
+
+labels:
+  service: ssh
+  remediation: true
+  confidence: 3
+  spoofable: 0
+  classification:
+    - attack.T1595
+  behavior: "ssh:timeout-before-auth"
+  label: "SSH Timeout Before Auth (pfSense)"

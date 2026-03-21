@@ -1,0 +1,35 @@
+type: leaky
+name: kaijo/ssh-success-after-bruteforce-pfsense
+description: "Detect successful SSH login after multiple failed attempts on pfSense"
+
+filter: |
+  evt.Meta.service == "ssh"
+  && evt.Meta.log_type in [
+    "ssh_pam_auth_error",
+    "ssh_permission_denied",
+    "ssh_auth_fail",
+    "ssh_failed_auth",
+    "ssh_invalid_user",
+    "ssh_illegal_user",
+    "ssh_timeout_before_auth",
+    "ssh_success"
+  ]
+
+groupby: evt.Meta.source_ip
+distinct: evt.Meta.target_user
+
+capacity: 5
+leakspeed: 10m
+blackhole: 1m
+reprocess: true
+
+labels:
+  service: ssh
+  remediation: true
+  confidence: 3
+  spoofable: 0
+  classification:
+    - attack.T1110
+  behavior: "ssh:success-after-bruteforce"
+  label: "SSH Success After Bruteforce (pfSense)"
+

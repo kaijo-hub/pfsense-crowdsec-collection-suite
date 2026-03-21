@@ -1,0 +1,24 @@
+type: leaky
+name: kaijo/ssh-disconnect-abuse-pfsense
+description: "Detect SSH disconnect abuse on pfSense"
+
+filter: |
+  evt.Meta.service == "ssh"
+  && evt.Meta.log_type == "ssh_disconnect"
+
+groupby: evt.Meta.source_ip
+distinct: evt.Parsed.src_port
+capacity: 5
+leakspeed: 10s
+blackhole: 1m
+reprocess: true
+
+labels:
+  service: ssh
+  remediation: true
+  confidence: 3
+  spoofable: 0
+  classification:
+    - attack.T1595
+  behavior: "ssh:disconnect-abuse"
+  label: "SSH Disconnect Abuse (pfSense)"

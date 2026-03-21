@@ -1,0 +1,10 @@
+Mar  8 20:00:00 pfSense sshd-session[60005]: Timeout before authentication for connection from 2001:db8::7 to 2001:db8::1, pid = 60005
+Mar  8 20:00:02 pfSense sshd-session[60006]: Timeout before authentication for connection from 2001:db8::7 to 2001:db8::1, pid = 60006
+Mar  8 20:00:04 pfSense sshd-session[60007]: Timeout before authentication for connection from 2001:db8::7 to 2001:db8::1, pid = 60007
+Mar  8 20:00:06 pfSense sshd[60008]: Timeout before authentication for connection from 2001:db8::7 to 2001:db8::1, pid = 60008
+Mar  8 20:00:08 pfSense sshd[60009]: Timeout before authentication for connection from 2001:db8::7 to 2001:db8::1, pid = 60009
+<134>1 2026-03-08T20:00:00.000000+01:00 pfSense sshd-session 60005 - - Timeout before authentication for connection from 2001:db8::7 to 2001:db8::1, pid = 60005
+<134>1 2026-03-08T20:00:02.000000+01:00 pfSense sshd-session 60006 - - Timeout before authentication for connection from 2001:db8::7 to 2001:db8::1, pid = 60006
+<134>1 2026-03-08T20:00:04.000000+01:00 pfSense sshd-session 60007 - - Timeout before authentication for connection from 2001:db8::7 to 2001:db8::1, pid = 60007
+<134>1 2026-03-08T20:00:06.000000+01:00 pfSense sshd 60008 - - Timeout before authentication for connection from 2001:db8::7 to 2001:db8::1, pid = 60008
+<134>1 2026-03-08T20:00:08.000000+01:00 pfSense sshd 60009 - - Timeout before authentication for connection from 2001:db8::7 to 2001:db8::1, pid = 60009

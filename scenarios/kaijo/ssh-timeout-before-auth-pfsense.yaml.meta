@@ -1,0 +1,27 @@
+type: scenario
+name: kaijo/ssh-timeout-before-auth-pfsense
+description: >
+  Detects SSH timeout-before-authentication patterns on pfSense systems, where
+  attackers open connections but never complete authentication, often used for
+  reconnaissance or resource exhaustion. Tailored for FreeBSD/OpenSSH logs.
+
+author: kaijo
+license: MIT
+version: 0.1.6
+
+labels:
+  service: sshd
+  platform: pfSense
+  attack_type: timeout
+  stage: pre_auth
+
+tags:
+  - pfSense
+  - SSH
+  - Security
+  - Timeout
+  - FreeBSD
+
+events:
+  - connection_timeout
+  - connection_attempt

@@ -1,0 +1,27 @@
+type: scenario
+name: kaijo/ssh-conn-closed-scan-pfsense
+description: >
+  Detects SSH connection-closed scanning behavior on pfSense systems, where
+  attackers rapidly open and close SSH connections to probe service behavior
+  without completing authentication. Tailored for FreeBSD/OpenSSH logs.
+
+author: kaijo
+license: MIT
+version: 0.1.6
+
+labels:
+  service: sshd
+  platform: pfSense
+  attack_type: scan
+  scan_type: connection_closed
+
+tags:
+  - pfSense
+  - SSH
+  - Security
+  - Scan
+  - FreeBSD
+
+events:
+  - connection_closed
+  - connection_attempt

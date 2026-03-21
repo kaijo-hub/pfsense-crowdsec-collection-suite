@@ -1,0 +1,26 @@
+type: scenario
+name: kaijo/ssh-disconnect-abuse-pfsense
+description: >
+  Detects SSH disconnect-abuse patterns on pfSense systems, where attackers
+  repeatedly trigger disconnect events to probe server behavior or evade
+  authentication-based detection. Designed for FreeBSD/OpenSSH logs.
+
+author: kaijo
+license: MIT
+version: 0.1.6
+
+labels:
+  service: sshd
+  platform: pfSense
+  attack_type: disconnect_abuse
+
+tags:
+  - pfSense
+  - SSH
+  - Security
+  - Abuse
+  - FreeBSD
+
+events:
+  - connection_closed
+  - disconnect

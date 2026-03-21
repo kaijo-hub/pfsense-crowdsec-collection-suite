@@ -1,0 +1,23 @@
+type: collection
+name: kaijo/pfsense-crowdsec-collection-suite
+description: >
+  Comprehensive CrowdSec Collection Suite for pfSense CE and pfSense Plus.
+  Includes pfSense-specific SSH parsers (RFC3164/RFC5424) and SSH security
+  scenarios with full hubtest validation. Designed for FreeBSD/OpenSSH log
+  variants used by pfSense.
+
+author: kaijo
+license: MIT
+version: 0.1.6
+
+tags:
+  - pfSense
+  - FreeBSD
+  - SSH
+  - Security
+  - Firewall
+  - CrowdSec
+
+labels:
+  platform: pfSense
+  suite: true

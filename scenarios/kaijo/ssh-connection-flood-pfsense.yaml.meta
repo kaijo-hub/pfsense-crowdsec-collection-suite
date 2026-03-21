@@ -1,0 +1,26 @@
+type: scenario
+name: kaijo/ssh-connection-flood-pfsense
+description: >
+  Detects SSH connection floods on pfSense systems, where attackers overwhelm
+  the SSH service with rapid connection attempts. Optimized for pfSense CE/Plus
+  FreeBSD/OpenSSH log formats.
+
+author: kaijo
+license: MIT
+version: 0.1.6
+
+labels:
+  service: sshd
+  platform: pfSense
+  attack_type: flood
+  vector: connection
+
+tags:
+  - pfSense
+  - SSH
+  - Security
+  - Flood
+  - FreeBSD
+
+events:
+  - connection_attempt

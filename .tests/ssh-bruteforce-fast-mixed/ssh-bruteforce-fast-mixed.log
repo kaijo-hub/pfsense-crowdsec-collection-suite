@@ -1,0 +1,10 @@
+Mar  7 18:09:01 routeme sshd-session[48636]: Accepted keyboard-interactive/pam for admin from 203.0.113.50 port 54233 ssh2
+Mar  7 18:09:02 routeme sshd-session[61764]: error: PAM: Authentication error for admin from 203.0.113.50
+Mar  7 18:09:03 routeme sshd-session[61764]: error: PAM: Authentication error for admin from 203.0.113.50
+Mar  7 18:09:04 routeme sshd[51700]: error: PAM: Authentication error for admin from 203.0.113.50
+Mar  7 18:09:05 routeme sshd[51700]: Connection closed by 203.0.113.50 port 54248
+<134>1 2026-03-07T18:09:06.000000+01:00 routeme sshd-session 48636 - - Accepted keyboard-interactive/pam for admin from 203.0.113.50 port 54260 ssh2
+<134>1 2026-03-07T18:09:07.000000+01:00 routeme sshd-session 61764 - - error: PAM: Authentication error for admin from 203.0.113.50
+<134>1 2026-03-07T18:09:08.000000+01:00 routeme sshd-session 61764 - - error: PAM: Authentication error for admin from 203.0.113.50
+<134>1 2026-03-07T18:09:09.000000+01:00 routeme sshd 51691 - - error: PAM: Authentication error for admin from 203.0.113.50
+<134>1 2026-03-07T18:09:10.000000+01:00 routeme sshd 51691 - - error: PAM: Authentication error for admin from 203.0.113.50

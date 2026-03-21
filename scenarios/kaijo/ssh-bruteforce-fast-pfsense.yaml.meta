@@ -1,0 +1,28 @@
+type: scenario
+name: kaijo/ssh-bruteforce-fast-pfsense
+description: >
+  Detects fast SSH bruteforce attacks on pfSense systems using FreeBSD/OpenSSH
+  log patterns. Optimized for pfSense CE/Plus log formats.
+
+author: kaijo
+license: MIT
+version: 0.1.6
+
+labels:
+  service: sshd
+  platform: pfSense
+  attack_type: bruteforce
+  speed: fast
+
+tags:
+  - pfSense
+  - SSH
+  - Security
+  - Bruteforce
+  - FreeBSD
+
+events:
+  - authentication_failed
+  - invalid_user
+  - connection_attempt
+

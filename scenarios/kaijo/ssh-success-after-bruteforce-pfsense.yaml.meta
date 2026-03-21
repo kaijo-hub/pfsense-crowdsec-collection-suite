@@ -1,0 +1,27 @@
+type: scenario
+name: kaijo/ssh-success-after-bruteforce-pfsense
+description: >
+  Detects successful SSH logins following bruteforce attempts on pfSense
+  systems. Identifies attackers who eventually guess valid credentials after
+  repeated authentication failures. Optimized for FreeBSD/OpenSSH logs.
+
+author: kaijo
+license: MIT
+version: 0.1.6
+
+labels:
+  service: sshd
+  platform: pfSense
+  attack_type: post_bruteforce
+  outcome: success
+
+tags:
+  - pfSense
+  - SSH
+  - Security
+  - Bruteforce
+  - FreeBSD
+
+events:
+  - authentication_failed
+  - authentication_success

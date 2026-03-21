@@ -1,0 +1,12 @@
+parsers:
+    - crowdsecurity/syslog-logs
+    - parsers/s01-parse/kaijo/sshd-logs-rfc3164.yaml
+    - parsers/s01-parse/kaijo/sshd-logs-rfc5424.yaml
+    - crowdsecurity/dateparse-enrich
+    - crowdsecurity/geoip-enrich
+scenarios:
+    - scenarios/kaijo/ssh-bruteforce-slow-pfsense.yaml
+postoverflows:
+    - ""
+log_file: ssh-bruteforce-slow-mixed.log
+log_type: syslog

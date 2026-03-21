@@ -1,0 +1,22 @@
+type: parser
+name: kaijo/sshd-logs-rfc5424
+description: >
+  pfSense-specific SSHD log parser for RFC5424 format (FreeBSD/OpenSSH).
+  Extracts authentication events, connection attempts, disconnects, and
+  invalid user patterns from pfSense CE/Plus logs.
+
+author: kaijo
+license: MIT
+version: 0.1.6
+
+labels:
+  service: sshd
+  platform: pfSense
+  log_format: rfc5424
+
+tags:
+  - pfSense
+  - FreeBSD
+  - SSH
+  - Logs
+  - Parser
