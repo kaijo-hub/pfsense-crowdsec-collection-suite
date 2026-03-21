@@ -8,7 +8,6 @@ jobs:
 hubtest:
 runs-on: ubuntu-latest
 
-```
 steps:
   - name: Checkout Repo
     uses: actions/checkout@v4
@@ -54,4 +53,3 @@ steps:
   - name: Run HubTests
     run: |
       cscli hubtest run --all --hub ~/hub --report-success
-```
