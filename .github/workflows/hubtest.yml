@@ -78,10 +78,13 @@ jobs:
         run: |
           set -e
           cd ~/hub
-          cscli hubtest run . \
-            --report-success \
-            --hub ~/hub \
-            --config /etc/crowdsec/config.yaml
+
+          mkdir -p ~/crowdsec-data
+          mkdir -p ~/crowdsec-db
+
+          echo "== Running hubtest =="
+
+          cscli hubtest run . --report-success --hub ~/hub --config /etc/crowdsec/config.yaml --data ~/crowdsec-data --db ~/crowdsec-db
 
       - name: Dump logs on failure
         if: failure()
