@@ -24,17 +24,11 @@ jobs:
       - name: Install CrowdSec
         run: |
           set -e
-
           wget https://github.com/crowdsecurity/crowdsec/releases/latest/download/crowdsec-release.tgz
           tar -xzf crowdsec-release.tgz
 
           CROWDSEC_BIN=$(find . -type f -name crowdsec | head -n 1)
           CSCLI_BIN=$(find . -type f -name cscli | head -n 1)
-
-          if [ -z "$CROWDSEC_BIN" ] || [ -z "$CSCLI_BIN" ]; then
-            echo "❌ crowdsec or cscli binary not found!"
-            exit 1
-          fi
 
           chmod +x "$CROWDSEC_BIN" "$CSCLI_BIN"
 
@@ -45,7 +39,7 @@ jobs:
           cscli version
 
       # -----------------------------
-      # Prepare hub (INCLUDING .tests)
+      # Prepare hub (inkl. .tests!)
       # -----------------------------
       - name: Prepare hub directory
         run: |
@@ -61,6 +55,12 @@ jobs:
           set -e
 
           sudo mkdir -p /etc/crowdsec
+          sudo mkdir -p /var/lib/crowdsec
+          sudo mkdir -p /var/log/crowdsec
+
+          sudo chown -R runner:runner /var/lib/crowdsec
+          sudo chown -R runner:runner /var/log/crowdsec
+
           sudo rm -f /etc/crowdsec/config.yaml
 
           echo "common:" | sudo tee -a /etc/crowdsec/config.yaml
@@ -70,7 +70,7 @@ jobs:
           echo "" | sudo tee -a /etc/crowdsec/config.yaml
           echo "db_config:" | sudo tee -a /etc/crowdsec/config.yaml
           echo "  type: sqlite" | sudo tee -a /etc/crowdsec/config.yaml
-          echo "  db_path: /home/runner/crowdsec.db" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  db_path: /var/lib/crowdsec/data.db" | sudo tee -a /etc/crowdsec/config.yaml
           echo "" | sudo tee -a /etc/crowdsec/config.yaml
           echo "api:" | sudo tee -a /etc/crowdsec/config.yaml
           echo "  server:" | sudo tee -a /etc/crowdsec/config.yaml
@@ -100,32 +100,23 @@ jobs:
         run: |
           set -e
 
-          if [ ! -d ~/hub/.tests ]; then
-            echo "❌ Missing .tests directory"
-            exit 1
-          fi
-
-          if [ ! -d ~/hub/parsers ]; then
-            echo "❌ Missing parsers directory"
-            exit 1
-          fi
-
-          if [ ! -d ~/hub/scenarios ]; then
-            echo "❌ Missing scenarios directory"
-            exit 1
-          fi
+          [ -d ~/hub/.tests ] || (echo "❌ Missing .tests" && exit 1)
+          [ -d ~/hub/parsers ] || (echo "❌ Missing parsers" && exit 1)
+          [ -d ~/hub/scenarios ] || (echo "❌ Missing scenarios" && exit 1)
 
           echo "✅ Hub structure looks good"
 
       # -----------------------------
-      # Run HubTest
+      # Run HubTest (FINAL + CORRECT)
       # -----------------------------
       - name: Run hubtest
         run: |
           set -e
           cd ~/hub
 
-          cscli hubtest run . --report-success --hub ~/hub --config /etc/crowdsec/config.yaml
+          echo "== Running hubtest =="
+
+          cscli hubtest run . --all --report-success --hub ~/hub --config /etc/crowdsec/config.yaml
 
       # -----------------------------
       # Debug on failure
