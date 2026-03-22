@@ -24,7 +24,6 @@ steps:
   - name: Install CrowdSec
     run: |
       set -e
-
       wget https://github.com/crowdsecurity/crowdsec/releases/latest/download/crowdsec-release.tgz
       tar -xzf crowdsec-release.tgz
 
@@ -57,11 +56,10 @@ steps:
   - name: Setup CrowdSec config
     run: |
       set -e
-
-      mkdir -p /etc/crowdsec
+      sudo mkdir -p /etc/crowdsec
 
       # copy default config from release
-      cp ~/hub/crowdsec-v*/config/config.yaml /etc/crowdsec/config.yaml
+      sudo cp ~/hub/crowdsec-v*/config/config.yaml /etc/crowdsec/config.yaml
 
       echo "✅ Config installed:"
       ls -l /etc/crowdsec/
@@ -105,7 +103,7 @@ steps:
       echo "✅ Hub structure looks good"
 
   # -----------------------------
-  # Run HubTest (CORRECT)
+  # Run HubTest
   # -----------------------------
   - name: Run hubtest
     run: |
