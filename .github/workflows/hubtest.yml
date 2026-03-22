@@ -107,7 +107,7 @@ jobs:
         run: |
           set -e
 
-          cd $GITHUB_WORKSPACE/hub
+          cd $GITHUB_WORKSPACE
 
           echo "== Running hubtest =="
 
