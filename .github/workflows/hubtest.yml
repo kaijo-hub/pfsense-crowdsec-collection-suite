@@ -9,13 +9,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # -----------------------------
+      # Checkout
+      # -----------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
       # -----------------------------
-      # Install CrowdSec manually
+      # Install CrowdSec
       # -----------------------------
-      - name: Install CrowdSec manually
+      - name: Install CrowdSec
         run: |
           set -e
 
@@ -23,41 +26,70 @@ jobs:
           tar -xzf crowdsec-release.tgz
 
           CS_DIR=$(find . -maxdepth 1 -type d -name "crowdsec-v*" | head -n 1)
-          echo "CrowdSec directory: $CS_DIR"
 
           sudo cp "$CS_DIR/cmd/crowdsec/crowdsec" /usr/local/bin/crowdsec
+          sudo cp "$CS_DIR/cmd/cscli/cscli" /usr/local/bin/cscli 2>/dev/null || \
           sudo cp "$CS_DIR/cmd/crowdsec-cli/cscli" /usr/local/bin/cscli
+
           sudo chmod +x /usr/local/bin/crowdsec /usr/local/bin/cscli
-
-          sudo mkdir -p /etc/crowdsec
-          sudo cp -r "$CS_DIR/config/"* /etc/crowdsec/
-
-          sudo touch /etc/crowdsec/local_api_credentials.yaml
-          sudo touch /etc/crowdsec/online_api_credentials.yaml
-
-          sudo chown -R runner:runner /etc/crowdsec
 
           crowdsec -version
           cscli version
 
       # -----------------------------
-      # FIX: CrowdSec runtime dirs
+      # Setup CrowdSec config (NO EOF / NO HEREDOC)
       # -----------------------------
-      - name: Fix CrowdSec runtime directories
+      - name: Setup CrowdSec config
         run: |
+          set -e
+
+          sudo mkdir -p /etc/crowdsec
           sudo mkdir -p /var/lib/crowdsec
           sudo mkdir -p /var/log/crowdsec
-          sudo chown -R runner:runner /var/lib/crowdsec
-          sudo chown -R runner:runner /var/log/crowdsec
+
+          sudo rm -f /etc/crowdsec/config.yaml
+
+          echo "common:" | sudo tee /etc/crowdsec/config.yaml
+          echo "  daemonize: false" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  log_media: stdout" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  log_level: info" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "" | sudo tee -a /etc/crowdsec/config.yaml
+
+          echo "db_config:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  type: sqlite" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  db_path: /var/lib/crowdsec/data.db" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "" | sudo tee -a /etc/crowdsec/config.yaml
+
+          echo "api:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  server:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "    listen_uri: 127.0.0.1:8080" | sudo tee -a /etc/crowdsec/config.yaml
+
+          echo "CONFIG:"
+          cat /etc/crowdsec/config.yaml
 
       # -----------------------------
-      # Prepare hub directory
+      # Prepare hub workspace (NO /etc hub usage)
       # -----------------------------
-      - name: Prepare hub directory
+      - name: Prepare hub
         run: |
-          rm -rf ~/hub
-          mkdir -p ~/hub
-          cp -r . ~/hub/
+          set -e
+
+          mkdir -p $GITHUB_WORKSPACE/hub
+          cp -r . $GITHUB_WORKSPACE/hub
+
+      # -----------------------------
+      # Validate hub structure
+      # -----------------------------
+      - name: Validate hub structure
+        run: |
+          set -e
+
+          cd $GITHUB_WORKSPACE/hub
+
+          [ -d parsers ] || (echo "Missing parsers/" && exit 1)
+          [ -d scenarios ] || (echo "Missing scenarios/" && exit 1)
+
+          echo "Hub structure OK"
 
       # -----------------------------
       # Run hubtest
@@ -65,11 +97,24 @@ jobs:
       - name: Run hubtest
         run: |
           set -e
-          cd ~/hub
+
+          cd $GITHUB_WORKSPACE/hub
 
           echo "== Running hubtest =="
 
           cscli hubtest run . \
             --all \
-            --report-success \
-            --hub ~/hub
+            --config /etc/crowdsec/config.yaml \
+            --report-success
+
+      # -----------------------------
+      # Debug on failure
+      # -----------------------------
+      - name: Dump logs
+        if: failure()
+        run: |
+          echo "== Hub content =="
+          ls -R $GITHUB_WORKSPACE/hub || true
+
+          echo "== Config =="
+          cat /etc/crowdsec/config.yaml || true
