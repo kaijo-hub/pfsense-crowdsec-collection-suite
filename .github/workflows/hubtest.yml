@@ -1,4 +1,4 @@
-name: CrowdSec HubTest
+name: CrowdSec HubTest v1.7.6
 
 on:
   push:
@@ -10,125 +10,78 @@ jobs:
 
     steps:
       # -----------------------------
-      # Checkout repository
+      # Checkout
       # -----------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
       # -----------------------------
-      # Install CrowdSec binaries
+      # Install CrowdSec
       # -----------------------------
       - name: Install CrowdSec
         run: |
           set -e
 
-          wget -q https://github.com/crowdsecurity/crowdsec/releases/latest/download/crowdsec-release.tgz
+          wget -q https://github.com/crowdsecurity/crowdsec/releases/download/v1.7.6/crowdsec-release.tgz
           tar -xzf crowdsec-release.tgz
 
           CS_DIR=$(find . -maxdepth 1 -type d -name "crowdsec-v*" | head -n 1)
 
-          sudo cp "$CS_DIR/cmd/crowdsec/crowdsec" /usr/local/bin/crowdsec
-          sudo cp "$CS_DIR/cmd/crowdsec-cli/cscli" /usr/local/bin/cscli 2>/dev/null || true
-          sudo cp "$CS_DIR/cmd/cscli/cscli" /usr/local/bin/cscli 2>/dev/null || true
+          sudo cp "$CS_DIR/cmd/crowdsec/crowdsec" /usr/local/bin/
+          sudo cp "$CS_DIR/cmd/crowdsec-cli/cscli" /usr/local/bin/ 2>/dev/null || true
+          sudo cp "$CS_DIR/cmd/cscli/cscli" /usr/local/bin/ 2>/dev/null || true
 
           sudo chmod +x /usr/local/bin/crowdsec /usr/local/bin/cscli
 
-          crowdsec -version
-          cscli version
-
       # -----------------------------
-      # Create workspace config (IMPORTANT FIX)
+      # SYSTEM CONFIG (CRITICAL FIX)
       # -----------------------------
-      - name: Setup CrowdSec config
+      - name: Setup system config
         run: |
           set -e
 
-          mkdir -p $HOME/crowdsec
+          sudo mkdir -p /etc/crowdsec
 
-          echo "common:" > $HOME/crowdsec/config.yaml
-          echo "  daemonize: false" >> $HOME/crowdsec/config.yaml
-          echo "  log_media: stdout" >> $HOME/crowdsec/config.yaml
-          echo "  log_level: info" >> $HOME/crowdsec/config.yaml
+          echo "common:" | sudo tee /etc/crowdsec/config.yaml
+          echo "  daemonize: false" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  log_media: stdout" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  log_level: info" | sudo tee -a /etc/crowdsec/config.yaml
 
-          echo "db_config:" >> $HOME/crowdsec/config.yaml
-          echo "  type: sqlite" >> $HOME/crowdsec/config.yaml
-          echo "  db_path: /tmp/crowdsec.db" >> $HOME/crowdsec/config.yaml
+          echo "db_config:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  type: sqlite" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  db_path: /tmp/crowdsec.db" | sudo tee -a /etc/crowdsec/config.yaml
 
-          echo "api:" >> $HOME/crowdsec/config.yaml
-          echo "  server:" >> $HOME/crowdsec/config.yaml
-          echo "    listen_uri: 127.0.0.1:8080" >> $HOME/crowdsec/config.yaml
+          echo "api:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  server:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "    listen_uri: 127.0.0.1:8080" | sudo tee -a /etc/crowdsec/config.yaml
 
-          echo "CONFIG CREATED:"
-          cat $HOME/crowdsec/config.yaml
+          cat /etc/crowdsec/config.yaml
 
       # -----------------------------
-      # Init Hub workspace
+      # Hub init (official way)
       # -----------------------------
-      - name: Init Hub
+      - name: Init hub
         run: |
           set -e
-
-          mkdir -p $HOME/hub
           cscli hub update
 
-          if [ -d /etc/crowdsec/hub ]; then
-            cp -r /etc/crowdsec/hub/* $HOME/hub/ || true
-          fi
+      # -----------------------------
+      # Add repo as hub
+      # -----------------------------
+      - name: Register local hub
+        run: |
+          set -e
+          cscli hub add local $GITHUB_WORKSPACE
 
       # -----------------------------
-      # Inject repository into hub
+      # Run hubtest (NO CONFIG OVERRIDE!)
       # -----------------------------
-      - name: Inject repo into hub
+      - name: Run hubtest
         run: |
           set -e
 
-          rsync -a parsers/ $HOME/hub/parsers/ || true
-          rsync -a scenarios/ $HOME/hub/scenarios/ || true
-          rsync -a collections/ $HOME/hub/collections/ || true
-
-      # -----------------------------
-      # Attach tests
-      # -----------------------------
-      - name: Attach tests
-        run: |
-          set -e
-
-          rm -rf $HOME/hub/.tests || true
-          cp -r $GITHUB_WORKSPACE/.tests $HOME/hub/.tests
-
-      # -----------------------------
-      # Clean runtime artifacts
-      # -----------------------------
-      - name: Clean runtime
-        run: |
-          set -e
-
-          find $HOME/hub/.tests -type d -name "runtime" -exec rm -rf {} + || true
-          find $HOME/hub/.tests -type d -name "results" -exec rm -rf {} + || true
-          find $HOME/hub/.tests -type d -name ".cache" -exec rm -rf {} + || true
-
-      # -----------------------------
-      # Run HubTests (FINAL FIXED CALL)
-      # -----------------------------
-      - name: Run HubTests
-        run: |
-          set -e
-
-          echo "== Running CrowdSec HubTests =="
+          echo "== Running hubtest =="
 
           cscli hubtest run --all \
-            --hub $HOME/hub \
-            --config $HOME/crowdsec/config.yaml \
+            --hub $GITHUB_WORKSPACE \
             --report-success
-
-      # -----------------------------
-      # Debug on failure
-      # -----------------------------
-      - name: Debug on failure
-        if: failure()
-        run: |
-          echo "==== HUB STRUCTURE ===="
-          ls -R $HOME/hub || true
-
-          echo "==== CONFIG ===="
-          cat $HOME/crowdsec/config.yaml || true
