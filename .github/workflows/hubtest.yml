@@ -10,13 +10,13 @@ jobs:
 
     steps:
       # -----------------------------
-      # Checkout repository
+      # Checkout
       # -----------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
       # -----------------------------
-      # Install CrowdSec binaries
+      # Install CrowdSec
       # -----------------------------
       - name: Install CrowdSec
         run: |
@@ -28,8 +28,8 @@ jobs:
           CS_DIR=$(find . -maxdepth 1 -type d -name "crowdsec-v*" | head -n 1)
 
           sudo cp "$CS_DIR/cmd/crowdsec/crowdsec" /usr/local/bin/crowdsec
-          sudo cp "$CS_DIR/cmd/crowdsec-cli/cscli" /usr/local/bin/cscli 2>/dev/null || \
-          sudo cp "$CS_DIR/cmd/cscli/cscli" /usr/local/bin/cscli
+          sudo cp "$CS_DIR/cmd/crowdsec-cli/cscli" /usr/local/bin/cscli 2>/dev/null || true
+          sudo cp "$CS_DIR/cmd/cscli/cscli" /usr/local/bin/cscli 2>/dev/null || true
 
           sudo chmod +x /usr/local/bin/crowdsec /usr/local/bin/cscli
 
@@ -37,59 +37,71 @@ jobs:
           cscli version
 
       # -----------------------------
-      # Initialize hub (official index)
+      # Setup CrowdSec config (NO EOF)
+      # -----------------------------
+      - name: Setup CrowdSec config
+        run: |
+          set -e
+
+          sudo mkdir -p /etc/crowdsec
+
+          echo "common:" | sudo tee /etc/crowdsec/config.yaml
+          echo "  daemonize: false" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  log_media: stdout" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  log_level: info" | sudo tee -a /etc/crowdsec/config.yaml
+
+          echo "db_config:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  type: sqlite" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  db_path: /tmp/crowdsec.db" | sudo tee -a /etc/crowdsec/config.yaml
+
+          echo "api:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  server:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "    listen_uri: 127.0.0.1:8080" | sudo tee -a /etc/crowdsec/config.yaml
+
+          echo "config written:"
+          cat /etc/crowdsec/config.yaml
+
+      # -----------------------------
+      # Init Hub
       # -----------------------------
       - name: Init CrowdSec Hub
         run: |
           set -e
-
           cscli hub update
 
       # -----------------------------
-      # Register local repo as hub
+      # Register local hub
       # -----------------------------
       - name: Register local hub
         run: |
           set -e
 
-          # Ensure clean hub state
-          rm -rf /tmp/crowdsec-hub
-          mkdir -p /tmp/crowdsec-hub
-
-          # Use repo as local hub source (maintainer pattern)
           cscli hub add local $GITHUB_WORKSPACE
 
       # -----------------------------
-      # Debug (optional but useful)
-      # -----------------------------
-      - name: Debug hub state
-        run: |
-          set -e
-
-          cscli hub list || true
-          cscli hub show local || true
-
-      # -----------------------------
-      # Run hubtest (MAINTAINER MODE)
+      # Run hubtest
       # -----------------------------
       - name: Run hubtest
         run: |
           set -e
 
-          echo "== Running CrowdSec Hub Tests =="
+          echo "== Running hubtest =="
 
           cscli hubtest run local \
             --all \
+            --config /etc/crowdsec/config.yaml \
             --report-success
 
       # -----------------------------
-      # Debug logs on failure
+      # Debug on failure
       # -----------------------------
-      - name: Dump logs on failure
+      - name: Dump debug
         if: failure()
         run: |
-          echo "== Hub structure =="
+          set -e
+
+          echo "== Workspace =="
           ls -R $GITHUB_WORKSPACE || true
 
-          echo "== cscli state =="
+          echo "== Hub state =="
           cscli hub list || true
