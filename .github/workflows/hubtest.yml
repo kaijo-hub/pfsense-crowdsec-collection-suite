@@ -53,11 +53,11 @@ jobs:
           set -e
           mkdir -p ~/hub
 
-          # include dotfiles like .tests
+          # Wichtig: inkl. dotfiles (.tests)
           cp -r . ~/hub/
 
       # -----------------------------
-      # FIXED CrowdSec config (NO HEREDOC!)
+      # Setup CrowdSec config (STABLE)
       # -----------------------------
       - name: Setup CrowdSec config
         run: |
@@ -65,8 +65,8 @@ jobs:
 
           sudo mkdir -p /etc/crowdsec
 
-          printf "%s\n" \
-"common:
+          sudo tee /etc/crowdsec/config.yaml > /dev/null <<'EOF'
+common:
   daemonize: false
   log_media: stdout
   log_level: info
@@ -78,7 +78,7 @@ db_config:
 api:
   server:
     listen_uri: 127.0.0.1:8080
-" | sudo tee /etc/crowdsec/config.yaml > /dev/null
+EOF
 
           echo "CrowdSec config written:"
           cat /etc/crowdsec/config.yaml
@@ -131,10 +131,7 @@ api:
 
           echo "== Running hubtest =="
 
-          cscli hubtest run . \
-            --report-success \
-            --hub ~/hub \
-            --config /etc/crowdsec/config.yaml
+          cscli hubtest run . --report-success --hub ~/hub --config /etc/crowdsec/config.yaml
 
       # -----------------------------
       # Debug on failure
