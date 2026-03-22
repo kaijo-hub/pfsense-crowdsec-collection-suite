@@ -1,4 +1,4 @@
-name: CrowdSec HubTest
+name: HubTest
 
 on:
   push:
@@ -8,48 +8,110 @@ jobs:
   hubtest:
     runs-on: ubuntu-latest
 
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     steps:
-      - name: Checkout Repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      # -----------------------------
+      # Install CrowdSec (robust)
+      # -----------------------------
+      - name: Install CrowdSec
         run: |
-          sudo apt-get update
-          sudo apt-get install -y git rsync wget
+          set -e
 
-      - name: Install CrowdSec (binary)
-        run: |
           wget https://github.com/crowdsecurity/crowdsec/releases/latest/download/crowdsec-release.tgz
           tar -xzf crowdsec-release.tgz
-          sudo cp crowdsec-*/crowdsec /usr/local/bin/
-          sudo cp crowdsec-*/cscli /usr/local/bin/
 
-      - name: Init Hub
+          echo "== Extracted structure =="
+          ls -R
+
+          # robust binary detection
+          CROWDSEC_BIN=$(find . -type f -name crowdsec | head -n 1)
+          CSCLI_BIN=$(find . -type f -name cscli | head -n 1)
+
+          if [ -z "$CROWDSEC_BIN" ] || [ -z "$CSCLI_BIN" ]; then
+            echo "❌ crowdsec or cscli binary not found!"
+            exit 1
+          fi
+
+          chmod +x "$CROWDSEC_BIN" "$CSCLI_BIN"
+
+          sudo cp "$CROWDSEC_BIN" /usr/local/bin/crowdsec
+          sudo cp "$CSCLI_BIN" /usr/local/bin/cscli
+
+          echo "✅ Installed CrowdSec:"
+          crowdsec -version
+          cscli version
+
+      # -----------------------------
+      # Prepare Hub structure
+      # -----------------------------
+      - name: Prepare hub directory
         run: |
+          set -e
           mkdir -p ~/hub
-          sudo cscli hub update
+          cp -r ./* ~/hub/
 
-          # Copy hub content to ~/hub
-          sudo cp -r /etc/crowdsec/hub/* ~/hub/
-          sudo chown -R $USER:$USER ~/hub
-
-      - name: Inject repo parsers & scenarios
+      # -----------------------------
+      # DEBUG STEP
+      # -----------------------------
+      - name: Debug hub structure
         run: |
-          rsync -av parsers/ ~/hub/parsers/
-          rsync -av scenarios/ ~/hub/scenarios/
-          rsync -av collections/ ~/hub/collections/
+          echo "== .tests =="
+          ls -R ~/hub/.tests || echo "❌ .tests missing"
 
-      - name: Prepare tests
-        run: |
-          mv ~/hub/.tests ~/hub/.tests.orig
-          ln -s $GITHUB_WORKSPACE/.tests ~/hub/.tests
-          cp ~/hub/.tests.orig/template_* ~/hub/.tests/
+          echo "== parsers =="
+          ls -R ~/hub/parsers || echo "❌ parsers missing"
 
-      - name: Clean runtime/cache
-        run: |
-          rm -rf ~/hub/.tests/*/runtime || true
-          rm -rf ~/hub/.tests/*/.cache || true
+          echo "== scenarios =="
+          ls -R ~/hub/scenarios || echo "❌ scenarios missing"
 
-      - name: Run HubTests
+      # -----------------------------
+      # Validate required structure
+      # -----------------------------
+      - name: Validate hub structure
         run: |
-          cscli hubtest run --all --hub ~/hub --report-success
+          set -e
+
+          if [ ! -d "~/hub/.tests" ]; then
+            echo "❌ Missing .tests directory"
+            exit 1
+          fi
+
+          if [ ! -d "~/hub/parsers" ]; then
+            echo "❌ Missing parsers directory"
+            exit 1
+          fi
+
+          if [ ! -d "~/hub/scenarios" ]; then
+            echo "❌ Missing scenarios directory"
+            exit 1
+          fi
+
+          echo "✅ Hub structure looks good"
+
+      # -----------------------------
+      # Run HubTest
+      # -----------------------------
+      - name: Run hubtest
+        run: |
+          set -e
+          cd ~/hub
+
+          echo "== Running hubtest =="
+          cscli hubtest run .
+
+      # -----------------------------
+      # Extra debug on failure
+      # -----------------------------
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          echo "== Dumping workspace =="
+          ls -R
+
+          echo "== Dumping hub =="
+          ls -R ~/hub || true
