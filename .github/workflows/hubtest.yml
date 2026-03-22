@@ -9,6 +9,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # -----------------------------
+      # Checkout repo
+      # -----------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -34,9 +37,9 @@ jobs:
           cscli version
 
       # -----------------------------
-      # Runtime directory (CI safe)
+      # Runtime directory (CI-safe)
       # -----------------------------
-      - name: Prepare runtime
+      - name: Prepare runtime directory
         run: |
           set -e
           mkdir -p /home/runner/crowdsec-runtime
@@ -77,37 +80,25 @@ jobs:
           cat /etc/crowdsec/config.yaml
 
       # -----------------------------
-      # Prepare hub workspace
+      # Validate hub structure (repo itself)
       # -----------------------------
-      - name: Prepare hub
+      - name: Validate hub structure
         run: |
           set -e
 
-          mkdir -p $GITHUB_WORKSPACE/hub
-          cp -r . $GITHUB_WORKSPACE/hub
-
-      # -----------------------------
-      # Validate hub
-      # -----------------------------
-      - name: Validate hub
-        run: |
-          set -e
-
-          cd $GITHUB_WORKSPACE/hub
+          echo "== Repo structure =="
 
           test -d parsers || (echo "Missing parsers/" && exit 1)
           test -d scenarios || (echo "Missing scenarios/" && exit 1)
 
-          echo "Hub OK"
+          echo "Hub structure OK"
 
       # -----------------------------
-      # Run hubtest
+      # Run hubtest (DIRECT, NO COPY)
       # -----------------------------
       - name: Run hubtest
         run: |
           set -e
-
-          cd $GITHUB_WORKSPACE
 
           echo "== Running hubtest =="
 
@@ -117,13 +108,19 @@ jobs:
             --report-success
 
       # -----------------------------
-      # Debug
+      # Debug on failure
       # -----------------------------
-      - name: Debug on failure
+      - name: Dump logs
         if: failure()
         run: |
-          echo "== HUB =="
-          ls -R $GITHUB_WORKSPACE/hub || true
+          echo "== Workspace =="
 
-          echo "== RUNTIME =="
+          ls -R $GITHUB_WORKSPACE || true
+
+          echo "== Runtime =="
+
           ls -R /home/runner/crowdsec-runtime || true
+
+          echo "== Config =="
+
+          cat /etc/crowdsec/config.yaml || true
