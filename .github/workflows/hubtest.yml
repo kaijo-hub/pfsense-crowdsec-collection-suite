@@ -9,9 +9,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # -----------------------------
-      # Checkout
-      # -----------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -37,40 +34,47 @@ jobs:
           cscli version
 
       # -----------------------------
-      # CI-safe runtime environment
+      # Runtime directory (CI safe)
       # -----------------------------
-      - name: Prepare runtime environment
+      - name: Prepare runtime
         run: |
           set -e
-
-          mkdir -p $HOME/crowdsec-runtime
+          mkdir -p /home/runner/crowdsec-runtime
 
       # -----------------------------
-      # CI-native config (NO /var/lib, NO system paths)
+      # CrowdSec config (NO EOF / NO HEREDOC)
       # -----------------------------
       - name: Setup CrowdSec config
         run: |
           set -e
 
           sudo mkdir -p /etc/crowdsec
+          sudo rm -f /etc/crowdsec/config.yaml
 
-          sudo tee /etc/crowdsec/config.yaml > /dev/null << 'EOF'
-common:
-  daemonize: false
-  log_media: stdout
-  log_level: info
+          echo "common:" | sudo tee /etc/crowdsec/config.yaml
+          echo "  daemonize: false" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  log_media: stdout" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  log_level: info" | sudo tee -a /etc/crowdsec/config.yaml
 
-db_config:
-  type: sqlite
-  db_path: /home/runner/crowdsec-runtime/data.db
+          echo "" | sudo tee -a /etc/crowdsec/config.yaml
 
-api:
-  server:
-    listen_uri: 127.0.0.1:8080
+          echo "db_config:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  type: sqlite" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  db_path: /home/runner/crowdsec-runtime/data.db" | sudo tee -a /etc/crowdsec/config.yaml
 
-crowdsec_service:
-  runtime_dir: /home/runner/crowdsec-runtime
-EOF
+          echo "" | sudo tee -a /etc/crowdsec/config.yaml
+
+          echo "api:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  server:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "    listen_uri: 127.0.0.1:8080" | sudo tee -a /etc/crowdsec/config.yaml
+
+          echo "" | sudo tee -a /etc/crowdsec/config.yaml
+
+          echo "crowdsec_service:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  runtime_dir: /home/runner/crowdsec-runtime" | sudo tee -a /etc/crowdsec/config.yaml
+
+          echo "=== CONFIG ==="
+          cat /etc/crowdsec/config.yaml
 
       # -----------------------------
       # Prepare hub workspace
@@ -83,21 +87,21 @@ EOF
           cp -r . $GITHUB_WORKSPACE/hub
 
       # -----------------------------
-      # Validate structure
+      # Validate hub
       # -----------------------------
-      - name: Validate hub structure
+      - name: Validate hub
         run: |
           set -e
 
           cd $GITHUB_WORKSPACE/hub
 
-          [ -d parsers ] || (echo "Missing parsers/" && exit 1)
-          [ -d scenarios ] || (echo "Missing scenarios/" && exit 1)
+          test -d parsers || (echo "Missing parsers/" && exit 1)
+          test -d scenarios || (echo "Missing scenarios/" && exit 1)
 
-          echo "Hub structure OK"
+          echo "Hub OK"
 
       # -----------------------------
-      # Run hubtest (CI-safe)
+      # Run hubtest
       # -----------------------------
       - name: Run hubtest
         run: |
@@ -113,13 +117,13 @@ EOF
             --report-success
 
       # -----------------------------
-      # Debug on failure
+      # Debug
       # -----------------------------
-      - name: Dump logs
+      - name: Debug on failure
         if: failure()
         run: |
-          echo "== Hub =="
+          echo "== HUB =="
           ls -R $GITHUB_WORKSPACE/hub || true
 
-          echo "== Runtime =="
-          ls -R $HOME/crowdsec-runtime || true
+          echo "== RUNTIME =="
+          ls -R /home/runner/crowdsec-runtime || true
