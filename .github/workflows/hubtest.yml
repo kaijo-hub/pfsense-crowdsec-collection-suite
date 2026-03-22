@@ -55,7 +55,7 @@ jobs:
           cp -r . ~/hub/
 
       # -----------------------------
-      # Setup CrowdSec config (FIXED)
+      # Setup CrowdSec config (FULL FIX)
       # -----------------------------
       - name: Setup CrowdSec config
         run: |
@@ -65,10 +65,7 @@ jobs:
           sudo mkdir -p /var/lib/crowdsec
           sudo mkdir -p /var/log/crowdsec
 
-          sudo rm -f /etc/crowdsec/config.yaml
-          sudo rm -f /etc/crowdsec/profiles.yaml
-          sudo rm -f /etc/crowdsec/simulation.yaml
-          sudo rm -f /etc/crowdsec/context.yaml
+          sudo rm -f /etc/crowdsec/*
 
           # config.yaml
           {
@@ -98,7 +95,19 @@ jobs:
           # context.yaml
           sudo touch /etc/crowdsec/context.yaml
 
-          # IMPORTANT FIX: CrowdSec must be able to read its config
+          # acquis.yaml (REQUIRED for CrowdSec 1.6+)
+          {
+            echo "filenames:"
+            echo "  - /dev/null"
+            echo "labels:"
+            echo "  type: dummy"
+          } | sudo tee /etc/crowdsec/acquis.yaml > /dev/null
+
+          # credentials stubs (REQUIRED)
+          sudo touch /etc/crowdsec/local_api_credentials.yaml
+          sudo touch /etc/crowdsec/online_api_credentials.yaml
+
+          # Fix permissions
           sudo chown -R runner:runner /etc/crowdsec
 
           echo "CrowdSec config written:"
