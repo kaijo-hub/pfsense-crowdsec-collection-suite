@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       # -----------------------------
-      # Install CrowdSec (robust)
+      # Install CrowdSec (FULL SETUP)
       # -----------------------------
       - name: Install CrowdSec
         run: |
@@ -28,39 +28,48 @@ jobs:
           wget https://github.com/crowdsecurity/crowdsec/releases/latest/download/crowdsec-release.tgz
           tar -xzf crowdsec-release.tgz
 
-          echo "== Extracted structure =="
-          ls -R
-
           CROWDSEC_BIN=$(find . -type f -name crowdsec | head -n 1)
           CSCLI_BIN=$(find . -type f -name cscli | head -n 1)
-
-          if [ -z "$CROWDSEC_BIN" ] || [ -z "$CSCLI_BIN" ]; then
-            echo "❌ crowdsec or cscli binary not found!"
-            exit 1
-          fi
 
           chmod +x "$CROWDSEC_BIN" "$CSCLI_BIN"
 
           sudo cp "$CROWDSEC_BIN" /usr/local/bin/crowdsec
           sudo cp "$CSCLI_BIN" /usr/local/bin/cscli
 
-          echo "✅ Installed CrowdSec:"
-          crowdsec -version
-          cscli version
+          echo "== Init CrowdSec config =="
+          sudo mkdir -p /etc/crowdsec
+
+          # MINIMAL CONFIG (required for hubtest)
+          sudo tee /etc/crowdsec/config.yaml > /dev/null <<EOF
+          common:
+            daemonize: false
+            log_media: stdout
+            log_level: info
+
+          api:
+            server:
+              listen_uri: 127.0.0.1:8080
+
+          db_config:
+            type: sqlite
+            db_path: /var/lib/crowdsec/data.db
+          EOF
+
+          sudo mkdir -p /var/lib/crowdsec
+
+          echo "✅ CrowdSec ready"
 
       # -----------------------------
-      # Prepare Hub structure (FIXED)
+      # Prepare Hub
       # -----------------------------
       - name: Prepare hub directory
         run: |
           set -e
           mkdir -p ~/hub
-
-          # IMPORTANT: includes hidden files like .tests
           rsync -a ./ ~/hub/
 
       # -----------------------------
-      # DEBUG STEP
+      # Debug
       # -----------------------------
       - name: Debug hub structure
         run: |
@@ -74,7 +83,7 @@ jobs:
           ls -R ~/hub/scenarios || echo "❌ scenarios missing"
 
       # -----------------------------
-      # Validate required structure (FIXED)
+      # Validate
       # -----------------------------
       - name: Validate hub structure
         run: |
@@ -98,7 +107,7 @@ jobs:
           echo "✅ Hub structure looks good"
 
       # -----------------------------
-      # Run HubTest
+      # Run HubTest (FIXED)
       # -----------------------------
       - name: Run hubtest
         run: |
@@ -106,10 +115,10 @@ jobs:
           cd ~/hub
 
           echo "== Running hubtest =="
-          cscli hubtest run . --report-success
+          cscli hubtest run . --report-success --hub ~/hub
 
       # -----------------------------
-      # Extra debug on failure
+      # Debug on failure
       # -----------------------------
       - name: Dump logs on failure
         if: failure()
