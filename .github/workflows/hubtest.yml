@@ -10,13 +10,13 @@ jobs:
 
     steps:
       # -----------------------------
-      # Checkout
+      # Checkout repository
       # -----------------------------
-      - name: Checkout Repo
+      - name: Checkout
         uses: actions/checkout@v4
 
       # -----------------------------
-      # Install CrowdSec
+      # Install CrowdSec binaries
       # -----------------------------
       - name: Install CrowdSec
         run: |
@@ -33,35 +33,61 @@ jobs:
 
           sudo chmod +x /usr/local/bin/crowdsec /usr/local/bin/cscli
 
+          crowdsec -version
+          cscli version
+
       # -----------------------------
-      # Create REAL hub workspace
+      # Create workspace config (IMPORTANT FIX)
       # -----------------------------
-      - name: Init Hub Workspace
+      - name: Setup CrowdSec config
+        run: |
+          set -e
+
+          mkdir -p $HOME/crowdsec
+
+          echo "common:" > $HOME/crowdsec/config.yaml
+          echo "  daemonize: false" >> $HOME/crowdsec/config.yaml
+          echo "  log_media: stdout" >> $HOME/crowdsec/config.yaml
+          echo "  log_level: info" >> $HOME/crowdsec/config.yaml
+
+          echo "db_config:" >> $HOME/crowdsec/config.yaml
+          echo "  type: sqlite" >> $HOME/crowdsec/config.yaml
+          echo "  db_path: /tmp/crowdsec.db" >> $HOME/crowdsec/config.yaml
+
+          echo "api:" >> $HOME/crowdsec/config.yaml
+          echo "  server:" >> $HOME/crowdsec/config.yaml
+          echo "    listen_uri: 127.0.0.1:8080" >> $HOME/crowdsec/config.yaml
+
+          echo "CONFIG CREATED:"
+          cat $HOME/crowdsec/config.yaml
+
+      # -----------------------------
+      # Init Hub workspace
+      # -----------------------------
+      - name: Init Hub
         run: |
           set -e
 
           mkdir -p $HOME/hub
-
           cscli hub update
 
-          # Copy official hub if exists
           if [ -d /etc/crowdsec/hub ]; then
             cp -r /etc/crowdsec/hub/* $HOME/hub/ || true
           fi
 
       # -----------------------------
-      # Inject repo into hub (CRITICAL STEP)
+      # Inject repository into hub
       # -----------------------------
-      - name: Inject repository into hub
+      - name: Inject repo into hub
         run: |
           set -e
 
-          rsync -av parsers/ $HOME/hub/parsers/ || true
-          rsync -av scenarios/ $HOME/hub/scenarios/ || true
-          rsync -av collections/ $HOME/hub/collections/ || true
+          rsync -a parsers/ $HOME/hub/parsers/ || true
+          rsync -a scenarios/ $HOME/hub/scenarios/ || true
+          rsync -a collections/ $HOME/hub/collections/ || true
 
       # -----------------------------
-      # Attach tests correctly
+      # Attach tests
       # -----------------------------
       - name: Attach tests
         run: |
@@ -71,7 +97,7 @@ jobs:
           cp -r $GITHUB_WORKSPACE/.tests $HOME/hub/.tests
 
       # -----------------------------
-      # Clean runtime
+      # Clean runtime artifacts
       # -----------------------------
       - name: Clean runtime
         run: |
@@ -79,9 +105,10 @@ jobs:
 
           find $HOME/hub/.tests -type d -name "runtime" -exec rm -rf {} + || true
           find $HOME/hub/.tests -type d -name "results" -exec rm -rf {} + || true
+          find $HOME/hub/.tests -type d -name ".cache" -exec rm -rf {} + || true
 
       # -----------------------------
-      # Run hubtest (REAL MODE)
+      # Run HubTests (FINAL FIXED CALL)
       # -----------------------------
       - name: Run HubTests
         run: |
@@ -91,16 +118,17 @@ jobs:
 
           cscli hubtest run --all \
             --hub $HOME/hub \
+            --config $HOME/crowdsec/config.yaml \
             --report-success
 
       # -----------------------------
       # Debug on failure
       # -----------------------------
-      - name: Debug
+      - name: Debug on failure
         if: failure()
         run: |
-          echo "Hub structure:"
+          echo "==== HUB STRUCTURE ===="
           ls -R $HOME/hub || true
 
-          echo "Tests:"
-          ls -R $HOME/hub/.tests || true
+          echo "==== CONFIG ===="
+          cat $HOME/crowdsec/config.yaml || true
