@@ -12,12 +12,19 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
+      # -----------------------------
+      # Checkout
+      # -----------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # -----------------------------
+      # Install CrowdSec
+      # -----------------------------
       - name: Install CrowdSec
         run: |
           set -e
+
           wget https://github.com/crowdsecurity/crowdsec/releases/latest/download/crowdsec-release.tgz
           tar -xzf crowdsec-release.tgz
 
@@ -29,67 +36,93 @@ jobs:
           sudo cp "$CROWDSEC_BIN" /usr/local/bin/crowdsec
           sudo cp "$CSCLI_BIN" /usr/local/bin/cscli
 
+          echo "CrowdSec version:"
           crowdsec -version
           cscli version
 
+      # -----------------------------
+      # Prepare hub (IMPORTANT: include dotfiles)
+      # -----------------------------
       - name: Prepare hub directory
         run: |
           set -e
           mkdir -p ~/hub
           cp -r . ~/hub/
 
+      # -----------------------------
+      # Fix CrowdSec runtime permissions (IMPORTANT FIX)
+      # -----------------------------
       - name: Setup CrowdSec config
         run: |
           set -e
-          sudo mkdir -p /etc/crowdsec
-          sudo cp ~/hub/crowdsec-v*/config/config.yaml /etc/crowdsec/config.yaml
 
+          sudo mkdir -p /etc/crowdsec
+
+          cat <<EOF | sudo tee /etc/crowdsec/config.yaml
+common:
+  daemonize: false
+  log_media: stdout
+  log_level: info
+
+db_config:
+  type: sqlite
+  db_path: /home/runner/crowdsec.db
+
+api:
+  server:
+    listen_uri: 127.0.0.1:8080
+EOF
+
+          echo "CrowdSec config written:"
+          cat /etc/crowdsec/config.yaml
+
+      # -----------------------------
+      # Debug structure
+      # -----------------------------
       - name: Debug hub structure
         run: |
           echo "== .tests =="
-          ls -R ~/hub/.tests || echo ".tests missing"
+          ls -R ~/hub/.tests || echo "❌ .tests missing"
 
           echo "== parsers =="
-          ls -R ~/hub/parsers || echo "parsers missing"
+          ls -R ~/hub/parsers || echo "❌ parsers missing"
 
           echo "== scenarios =="
-          ls -R ~/hub/scenarios || echo "scenarios missing"
+          ls -R ~/hub/scenarios || echo "❌ scenarios missing"
 
+      # -----------------------------
+      # Validate structure
+      # -----------------------------
       - name: Validate hub structure
         run: |
           set -e
 
-          if [ ! -d ~/hub/.tests ]; then
-            echo "Missing .tests directory"
-            exit 1
-          fi
+          test -d ~/hub/.tests || (echo "❌ Missing .tests" && exit 1)
+          test -d ~/hub/parsers || (echo "❌ Missing parsers" && exit 1)
+          test -d ~/hub/scenarios || (echo "❌ Missing scenarios" && exit 1)
 
-          if [ ! -d ~/hub/parsers ]; then
-            echo "Missing parsers directory"
-            exit 1
-          fi
+          echo "✅ Hub structure OK"
 
-          if [ ! -d ~/hub/scenarios ]; then
-            echo "Missing scenarios directory"
-            exit 1
-          fi
-
+      # -----------------------------
+      # Run hubtest (CORRECT CALL)
+      # -----------------------------
       - name: Run hubtest
         run: |
           set -e
           cd ~/hub
 
-          mkdir -p ~/crowdsec-data
-          mkdir -p ~/crowdsec-db
-
           echo "== Running hubtest =="
 
-          cscli hubtest run . --report-success --hub ~/hub --config /etc/crowdsec/config.yaml --data ~/crowdsec-data --db ~/crowdsec-db
+          cscli hubtest run . --report-success --hub ~/hub --config /etc/crowdsec/config.yaml
 
+      # -----------------------------
+      # Debug on failure
+      # -----------------------------
       - name: Dump logs on failure
         if: failure()
         run: |
-          echo "== Dumping workspace =="
+          echo "== Workspace dump =="
           ls -R
-          echo "== Dumping hub =="
+
+          echo "== Hub dump =="
           ls -R ~/hub || true
