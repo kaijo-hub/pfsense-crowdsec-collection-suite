@@ -8,44 +8,30 @@ jobs:
   hubtest:
     runs-on: ubuntu-latest
 
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
     steps:
-      # -----------------------------
-      # Checkout
-      # -----------------------------
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       # -----------------------------
-      # Download & extract CrowdSec (PORTABLE MODE)
+      # Install CrowdSec properly
       # -----------------------------
-      - name: Download CrowdSec portable
+      - name: Install CrowdSec
         run: |
           set -e
 
           wget https://github.com/crowdsecurity/crowdsec/releases/latest/download/crowdsec-release.tgz
-          mkdir cs
-          tar -xzf crowdsec-release.tgz -C cs
+          tar -xzf crowdsec-release.tgz
+          cd crowdsec-v*
 
-          # Find portable binaries
-          export CROWDSEC_BIN=$(find cs -type f -name crowdsec | head -n 1)
-          export CSCLI_BIN=$(find cs -type f -name cscli | head -n 1)
+          sudo ./wizard.sh --install
 
-          chmod +x "$CROWDSEC_BIN" "$CSCLI_BIN"
+          sudo systemctl stop crowdsec || true
 
-          echo "CrowdSec binary: $CROWDSEC_BIN"
-          echo "cscli binary: $CSCLI_BIN"
-
-          "$CROWDSEC_BIN" -version
-          "$CSCLI_BIN" version
-
-          # Make binaries available in PATH
-          echo "$(dirname "$CROWDSEC_BIN")" >> $GITHUB_PATH
+          cscli version
+          crowdsec -version
 
       # -----------------------------
-      # Prepare hub directory
+      # Prepare hub
       # -----------------------------
       - name: Prepare hub directory
         run: |
@@ -55,18 +41,7 @@ jobs:
           cp -r . ~/hub/
 
       # -----------------------------
-      # Use portable CrowdSec config
-      # -----------------------------
-      - name: Determine portable config path
-        id: cfg
-        run: |
-          set -e
-          CFG=$(find cs -type f -path "*/config/config.yaml" | head -n 1)
-          echo "config=$CFG" >> $GITHUB_OUTPUT
-          echo "Portable config: $CFG"
-
-      # -----------------------------
-      # Debug hub structure
+      # Debug hub
       # -----------------------------
       - name: Debug hub structure
         run: |
@@ -80,18 +55,7 @@ jobs:
           ls -R ~/hub/scenarios || echo "❌ scenarios missing"
 
       # -----------------------------
-      # Validate hub structure
-      # -----------------------------
-      - name: Validate hub structure
-        run: |
-          set -e
-          [ -d ~/hub/.tests ] || (echo "❌ Missing .tests" && exit 1)
-          [ -d ~/hub/parsers ] || (echo "❌ Missing parsers" && exit 1)
-          [ -d ~/hub/scenarios ] || (echo "❌ Missing scenarios" && exit 1)
-          echo "✅ Hub structure OK"
-
-      # -----------------------------
-      # Run hubtest (PORTABLE MODE)
+      # Run hubtest
       # -----------------------------
       - name: Run hubtest
         run: |
@@ -99,13 +63,11 @@ jobs:
           cd ~/hub
 
           echo "== Running hubtest =="
-          echo "Using config: ${{ steps.cfg.outputs.config }}"
 
-          cscli hubtest run . \
+          sudo cscli hubtest run . \
             --all \
             --report-success \
-            --hub ~/hub \
-            --config "${{ steps.cfg.outputs.config }}"
+            --hub ~/hub
 
       # -----------------------------
       # Debug on failure
