@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v4
 
       # -----------------------------
-      # Install CrowdSec manually (NO wizard, NO systemd)
+      # Install CrowdSec manually
       # -----------------------------
       - name: Install CrowdSec manually
         run: |
@@ -25,51 +25,39 @@ jobs:
           CS_DIR=$(find . -maxdepth 1 -type d -name "crowdsec-v*" | head -n 1)
           echo "CrowdSec directory: $CS_DIR"
 
-          # Install binaries
           sudo cp "$CS_DIR/cmd/crowdsec/crowdsec" /usr/local/bin/crowdsec
           sudo cp "$CS_DIR/cmd/crowdsec-cli/cscli" /usr/local/bin/cscli
           sudo chmod +x /usr/local/bin/crowdsec /usr/local/bin/cscli
 
-          # Install default config
           sudo mkdir -p /etc/crowdsec
           sudo cp -r "$CS_DIR/config/"* /etc/crowdsec/
 
-          # Ensure required files exist
           sudo touch /etc/crowdsec/local_api_credentials.yaml
           sudo touch /etc/crowdsec/online_api_credentials.yaml
 
-          # Fix permissions
           sudo chown -R runner:runner /etc/crowdsec
-
-          echo "Installed config:"
-          ls -l /etc/crowdsec
 
           crowdsec -version
           cscli version
+
+      # -----------------------------
+      # FIX: CrowdSec runtime dirs
+      # -----------------------------
+      - name: Fix CrowdSec runtime directories
+        run: |
+          sudo mkdir -p /var/lib/crowdsec
+          sudo mkdir -p /var/log/crowdsec
+          sudo chown -R runner:runner /var/lib/crowdsec
+          sudo chown -R runner:runner /var/log/crowdsec
 
       # -----------------------------
       # Prepare hub directory
       # -----------------------------
       - name: Prepare hub directory
         run: |
-          set -e
           rm -rf ~/hub
           mkdir -p ~/hub
           cp -r . ~/hub/
-
-      # -----------------------------
-      # Debug hub
-      # -----------------------------
-      - name: Debug hub structure
-        run: |
-          echo "== .tests =="
-          ls -R ~/hub/.tests || echo "❌ .tests missing"
-
-          echo "== parsers =="
-          ls -R ~/hub/parsers || echo "❌ parsers missing"
-
-          echo "== scenarios =="
-          ls -R ~/hub/scenarios || echo "❌ scenarios missing"
 
       # -----------------------------
       # Run hubtest
@@ -85,15 +73,3 @@ jobs:
             --all \
             --report-success \
             --hub ~/hub
-
-      # -----------------------------
-      # Debug on failure
-      # -----------------------------
-      - name: Dump logs on failure
-        if: failure()
-        run: |
-          echo "== Workspace =="
-          ls -R
-
-          echo "== Hub =="
-          ls -R ~/hub || true
