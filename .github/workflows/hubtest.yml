@@ -12,6 +12,9 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
+      # -----------------------------
+      # Checkout
+      # -----------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -28,7 +31,6 @@ jobs:
           echo "== Extracted structure =="
           ls -R
 
-          # robust binary detection
           CROWDSEC_BIN=$(find . -type f -name crowdsec | head -n 1)
           CSCLI_BIN=$(find . -type f -name cscli | head -n 1)
 
@@ -47,13 +49,15 @@ jobs:
           cscli version
 
       # -----------------------------
-      # Prepare Hub structure
+      # Prepare Hub structure (FIXED)
       # -----------------------------
       - name: Prepare hub directory
         run: |
           set -e
           mkdir -p ~/hub
-          cp -r ./* ~/hub/
+
+          # IMPORTANT: includes hidden files like .tests
+          rsync -a ./ ~/hub/
 
       # -----------------------------
       # DEBUG STEP
@@ -70,23 +74,23 @@ jobs:
           ls -R ~/hub/scenarios || echo "❌ scenarios missing"
 
       # -----------------------------
-      # Validate required structure
+      # Validate required structure (FIXED)
       # -----------------------------
       - name: Validate hub structure
         run: |
           set -e
 
-          if [ ! -d "~/hub/.tests" ]; then
+          if [ ! -d ~/hub/.tests ]; then
             echo "❌ Missing .tests directory"
             exit 1
           fi
 
-          if [ ! -d "~/hub/parsers" ]; then
+          if [ ! -d ~/hub/parsers ]; then
             echo "❌ Missing parsers directory"
             exit 1
           fi
 
-          if [ ! -d "~/hub/scenarios" ]; then
+          if [ ! -d ~/hub/scenarios ]; then
             echo "❌ Missing scenarios directory"
             exit 1
           fi
@@ -102,7 +106,7 @@ jobs:
           cd ~/hub
 
           echo "== Running hubtest =="
-          cscli hubtest run .
+          cscli hubtest run . --report-success
 
       # -----------------------------
       # Extra debug on failure
