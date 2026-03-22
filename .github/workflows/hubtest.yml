@@ -41,7 +41,6 @@ jobs:
           sudo cp "$CROWDSEC_BIN" /usr/local/bin/crowdsec
           sudo cp "$CSCLI_BIN" /usr/local/bin/cscli
 
-          echo "✅ Installed CrowdSec"
           crowdsec -version
           cscli version
 
@@ -52,33 +51,30 @@ jobs:
         run: |
           set -e
           mkdir -p ~/hub
-
-          # Wichtig: inkl. dotfiles (.tests)
           cp -r . ~/hub/
 
       # -----------------------------
-      # Setup CrowdSec config (STABLE)
+      # Setup CrowdSec config (NO YAML RISK)
       # -----------------------------
       - name: Setup CrowdSec config
         run: |
           set -e
 
           sudo mkdir -p /etc/crowdsec
+          sudo rm -f /etc/crowdsec/config.yaml
 
-          sudo tee /etc/crowdsec/config.yaml > /dev/null <<'EOF'
-common:
-  daemonize: false
-  log_media: stdout
-  log_level: info
-
-db_config:
-  type: sqlite
-  db_path: /home/runner/crowdsec.db
-
-api:
-  server:
-    listen_uri: 127.0.0.1:8080
-EOF
+          echo "common:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  daemonize: false" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  log_media: stdout" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  log_level: info" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "db_config:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  type: sqlite" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  db_path: /home/runner/crowdsec.db" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "api:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  server:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "    listen_uri: 127.0.0.1:8080" | sudo tee -a /etc/crowdsec/config.yaml
 
           echo "CrowdSec config written:"
           cat /etc/crowdsec/config.yaml
@@ -122,14 +118,12 @@ EOF
           echo "✅ Hub structure looks good"
 
       # -----------------------------
-      # Run HubTest (CORRECT)
+      # Run HubTest
       # -----------------------------
       - name: Run hubtest
         run: |
           set -e
           cd ~/hub
-
-          echo "== Running hubtest =="
 
           cscli hubtest run . --report-success --hub ~/hub --config /etc/crowdsec/config.yaml
 
