@@ -1,130 +1,131 @@
 name: HubTest
 
 on:
-  push:
-  pull_request:
+push:
+pull_request:
 
 jobs:
-  hubtest:
-    runs-on: ubuntu-latest
+hubtest:
+runs-on: ubuntu-latest
 
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-    steps:
-      # -----------------------------
-      # Checkout
-      # -----------------------------
-      - name: Checkout repository
-        uses: actions/checkout@v4
+steps:
+  # -----------------------------
+  # Checkout
+  # -----------------------------
+  - name: Checkout repository
+    uses: actions/checkout@v4
 
-      # -----------------------------
-      # Install CrowdSec (FULL SETUP)
-      # -----------------------------
-      - name: Install CrowdSec
-        run: |
-          set -e
+  # -----------------------------
+  # Install CrowdSec
+  # -----------------------------
+  - name: Install CrowdSec
+    run: |
+      set -e
 
-          wget https://github.com/crowdsecurity/crowdsec/releases/latest/download/crowdsec-release.tgz
-          tar -xzf crowdsec-release.tgz
+      wget https://github.com/crowdsecurity/crowdsec/releases/latest/download/crowdsec-release.tgz
+      tar -xzf crowdsec-release.tgz
 
-          CROWDSEC_BIN=$(find . -type f -name crowdsec | head -n 1)
-          CSCLI_BIN=$(find . -type f -name cscli | head -n 1)
+      CROWDSEC_BIN=$(find . -type f -name crowdsec | head -n 1)
+      CSCLI_BIN=$(find . -type f -name cscli | head -n 1)
 
-          chmod +x "$CROWDSEC_BIN" "$CSCLI_BIN"
+      chmod +x "$CROWDSEC_BIN" "$CSCLI_BIN"
 
-          sudo cp "$CROWDSEC_BIN" /usr/local/bin/crowdsec
-          sudo cp "$CSCLI_BIN" /usr/local/bin/cscli
+      sudo cp "$CROWDSEC_BIN" /usr/local/bin/crowdsec
+      sudo cp "$CSCLI_BIN" /usr/local/bin/cscli
 
-          echo "== Init CrowdSec config =="
-          sudo mkdir -p /etc/crowdsec
+      echo "✅ Installed CrowdSec"
+      crowdsec -version
+      cscli version
 
-          # MINIMAL CONFIG (required for hubtest)
-          sudo tee /etc/crowdsec/config.yaml > /dev/null <<EOF
-          common:
-            daemonize: false
-            log_media: stdout
-            log_level: info
+  # -----------------------------
+  # Prepare hub (INCLUDING .tests)
+  # -----------------------------
+  - name: Prepare hub directory
+    run: |
+      set -e
+      mkdir -p ~/hub
 
-          api:
-            server:
-              listen_uri: 127.0.0.1:8080
+      # IMPORTANT: include dotfiles
+      cp -r . ~/hub/
 
-          db_config:
-            type: sqlite
-            db_path: /var/lib/crowdsec/data.db
-          EOF
+  # -----------------------------
+  # Provide CrowdSec config
+  # -----------------------------
+  - name: Setup CrowdSec config
+    run: |
+      set -e
 
-          sudo mkdir -p /var/lib/crowdsec
+      mkdir -p /etc/crowdsec
 
-          echo "✅ CrowdSec ready"
+      # copy default config from release
+      cp ~/hub/crowdsec-v*/config/config.yaml /etc/crowdsec/config.yaml
 
-      # -----------------------------
-      # Prepare Hub
-      # -----------------------------
-      - name: Prepare hub directory
-        run: |
-          set -e
-          mkdir -p ~/hub
-          rsync -a ./ ~/hub/
+      echo "✅ Config installed:"
+      ls -l /etc/crowdsec/
 
-      # -----------------------------
-      # Debug
-      # -----------------------------
-      - name: Debug hub structure
-        run: |
-          echo "== .tests =="
-          ls -R ~/hub/.tests || echo "❌ .tests missing"
+  # -----------------------------
+  # Debug
+  # -----------------------------
+  - name: Debug hub structure
+    run: |
+      echo "== .tests =="
+      ls -R ~/hub/.tests || echo "❌ .tests missing"
 
-          echo "== parsers =="
-          ls -R ~/hub/parsers || echo "❌ parsers missing"
+      echo "== parsers =="
+      ls -R ~/hub/parsers || echo "❌ parsers missing"
 
-          echo "== scenarios =="
-          ls -R ~/hub/scenarios || echo "❌ scenarios missing"
+      echo "== scenarios =="
+      ls -R ~/hub/scenarios || echo "❌ scenarios missing"
 
-      # -----------------------------
-      # Validate
-      # -----------------------------
-      - name: Validate hub structure
-        run: |
-          set -e
+  # -----------------------------
+  # Validate
+  # -----------------------------
+  - name: Validate hub structure
+    run: |
+      set -e
 
-          if [ ! -d ~/hub/.tests ]; then
-            echo "❌ Missing .tests directory"
-            exit 1
-          fi
+      if [ ! -d ~/hub/.tests ]; then
+        echo "❌ Missing .tests directory"
+        exit 1
+      fi
 
-          if [ ! -d ~/hub/parsers ]; then
-            echo "❌ Missing parsers directory"
-            exit 1
-          fi
+      if [ ! -d ~/hub/parsers ]; then
+        echo "❌ Missing parsers directory"
+        exit 1
+      fi
 
-          if [ ! -d ~/hub/scenarios ]; then
-            echo "❌ Missing scenarios directory"
-            exit 1
-          fi
+      if [ ! -d ~/hub/scenarios ]; then
+        echo "❌ Missing scenarios directory"
+        exit 1
+      fi
 
-          echo "✅ Hub structure looks good"
+      echo "✅ Hub structure looks good"
 
-      # -----------------------------
-      # Run HubTest (FIXED)
-      # -----------------------------
-      - name: Run hubtest
-        run: |
-          set -e
-          cd ~/hub
+  # -----------------------------
+  # Run HubTest (CORRECT)
+  # -----------------------------
+  - name: Run hubtest
+    run: |
+      set -e
+      cd ~/hub
 
-          echo "== Running hubtest =="
-          cscli hubtest run . --report-success --hub ~/hub
+      echo "== Running hubtest =="
+      cscli hubtest run . \
+        --report-success \
+        --hub ~/hub \
+        --config /etc/crowdsec/config.yaml
 
-      # -----------------------------
-      # Debug on failure
-      # -----------------------------
-      - name: Dump logs on failure
-        if: failure()
-        run: |
-          echo "== Dumping workspace =="
-          ls -R
+  # -----------------------------
+  # Debug on failure
+  # -----------------------------
+  - name: Dump logs on failure
+    if: failure()
+    run: |
+      echo "== Dumping workspace =="
+      ls -R
 
-          echo "== Dumping hub =="
-          ls -R ~/hub || true
+      echo "== Dumping hub =="
+      ls -R ~/hub || true
