@@ -31,26 +31,33 @@ jobs:
           CROWDSEC_BIN=$(find . -type f -name crowdsec | head -n 1)
           CSCLI_BIN=$(find . -type f -name cscli | head -n 1)
 
+          if [ -z "$CROWDSEC_BIN" ] || [ -z "$CSCLI_BIN" ]; then
+            echo "❌ crowdsec or cscli binary not found!"
+            exit 1
+          fi
+
           chmod +x "$CROWDSEC_BIN" "$CSCLI_BIN"
 
           sudo cp "$CROWDSEC_BIN" /usr/local/bin/crowdsec
           sudo cp "$CSCLI_BIN" /usr/local/bin/cscli
 
-          echo "CrowdSec version:"
+          echo "✅ Installed CrowdSec"
           crowdsec -version
           cscli version
 
       # -----------------------------
-      # Prepare hub (IMPORTANT: include dotfiles)
+      # Prepare hub (INCLUDING .tests)
       # -----------------------------
       - name: Prepare hub directory
         run: |
           set -e
           mkdir -p ~/hub
+
+          # include dotfiles like .tests
           cp -r . ~/hub/
 
       # -----------------------------
-      # Fix CrowdSec runtime permissions (IMPORTANT FIX)
+      # FIXED CrowdSec config (NO HEREDOC!)
       # -----------------------------
       - name: Setup CrowdSec config
         run: |
@@ -58,8 +65,8 @@ jobs:
 
           sudo mkdir -p /etc/crowdsec
 
-          cat <<EOF | sudo tee /etc/crowdsec/config.yaml
-common:
+          printf "%s\n" \
+"common:
   daemonize: false
   log_media: stdout
   log_level: info
@@ -71,13 +78,13 @@ db_config:
 api:
   server:
     listen_uri: 127.0.0.1:8080
-EOF
+" | sudo tee /etc/crowdsec/config.yaml > /dev/null
 
           echo "CrowdSec config written:"
           cat /etc/crowdsec/config.yaml
 
       # -----------------------------
-      # Debug structure
+      # Debug
       # -----------------------------
       - name: Debug hub structure
         run: |
@@ -91,20 +98,31 @@ EOF
           ls -R ~/hub/scenarios || echo "❌ scenarios missing"
 
       # -----------------------------
-      # Validate structure
+      # Validate
       # -----------------------------
       - name: Validate hub structure
         run: |
           set -e
 
-          test -d ~/hub/.tests || (echo "❌ Missing .tests" && exit 1)
-          test -d ~/hub/parsers || (echo "❌ Missing parsers" && exit 1)
-          test -d ~/hub/scenarios || (echo "❌ Missing scenarios" && exit 1)
+          if [ ! -d ~/hub/.tests ]; then
+            echo "❌ Missing .tests directory"
+            exit 1
+          fi
 
-          echo "✅ Hub structure OK"
+          if [ ! -d ~/hub/parsers ]; then
+            echo "❌ Missing parsers directory"
+            exit 1
+          fi
+
+          if [ ! -d ~/hub/scenarios ]; then
+            echo "❌ Missing scenarios directory"
+            exit 1
+          fi
+
+          echo "✅ Hub structure looks good"
 
       # -----------------------------
-      # Run hubtest (CORRECT CALL)
+      # Run HubTest (CORRECT)
       # -----------------------------
       - name: Run hubtest
         run: |
@@ -113,7 +131,10 @@ EOF
 
           echo "== Running hubtest =="
 
-          cscli hubtest run . --report-success --hub ~/hub --config /etc/crowdsec/config.yaml
+          cscli hubtest run . \
+            --report-success \
+            --hub ~/hub \
+            --config /etc/crowdsec/config.yaml
 
       # -----------------------------
       # Debug on failure
@@ -121,8 +142,8 @@ EOF
       - name: Dump logs on failure
         if: failure()
         run: |
-          echo "== Workspace dump =="
+          echo "== Dumping workspace =="
           ls -R
 
-          echo "== Hub dump =="
+          echo "== Dumping hub =="
           ls -R ~/hub || true
