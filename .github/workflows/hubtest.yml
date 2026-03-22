@@ -1,4 +1,4 @@
-name: HubTest
+name: CrowdSec HubTest
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
 
     steps:
       # -----------------------------
-      # Checkout repo
+      # Checkout repository
       # -----------------------------
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,21 +37,26 @@ jobs:
           cscli version
 
       # -----------------------------
-      # Runtime directory (CI-safe)
+      # CI runtime directory (ONLY filesystem, NOT config)
       # -----------------------------
       - name: Prepare runtime directory
         run: |
           set -e
           mkdir -p /home/runner/crowdsec-runtime
 
+          # IMPORTANT: isolate state via env (not config)
+          echo "CROWDSEC_STATE_DIR=/home/runner/crowdsec-runtime" >> $GITHUB_ENV
+          echo "CROWDSEC_CONFIG_DIR=/etc/crowdsec" >> $GITHUB_ENV
+
       # -----------------------------
-      # CrowdSec config (NO EOF / NO HEREDOC)
+      # CrowdSec config (SCHEMA VALID ONLY)
       # -----------------------------
       - name: Setup CrowdSec config
         run: |
           set -e
 
           sudo mkdir -p /etc/crowdsec
+
           sudo rm -f /etc/crowdsec/config.yaml
 
           echo "common:" | sudo tee /etc/crowdsec/config.yaml
@@ -71,22 +76,17 @@ jobs:
           echo "  server:" | sudo tee -a /etc/crowdsec/config.yaml
           echo "    listen_uri: 127.0.0.1:8080" | sudo tee -a /etc/crowdsec/config.yaml
 
-          echo "" | sudo tee -a /etc/crowdsec/config.yaml
-
-          echo "crowdsec_service:" | sudo tee -a /etc/crowdsec/config.yaml
-          echo "  runtime_dir: /home/runner/crowdsec-runtime" | sudo tee -a /etc/crowdsec/config.yaml
-
           echo "=== CONFIG ==="
           cat /etc/crowdsec/config.yaml
 
       # -----------------------------
-      # Validate hub structure (repo itself)
+      # Validate hub structure
       # -----------------------------
-      - name: Validate hub structure
+      - name: Validate hub
         run: |
           set -e
 
-          echo "== Repo structure =="
+          echo "Checking repository structure..."
 
           test -d parsers || (echo "Missing parsers/" && exit 1)
           test -d scenarios || (echo "Missing scenarios/" && exit 1)
@@ -94,7 +94,7 @@ jobs:
           echo "Hub structure OK"
 
       # -----------------------------
-      # Run hubtest (DIRECT, NO COPY)
+      # Run hubtest (official usage)
       # -----------------------------
       - name: Run hubtest
         run: |
@@ -110,17 +110,14 @@ jobs:
       # -----------------------------
       # Debug on failure
       # -----------------------------
-      - name: Dump logs
+      - name: Debug
         if: failure()
         run: |
-          echo "== Workspace =="
-
+          echo "=== Repo ==="
           ls -R $GITHUB_WORKSPACE || true
 
-          echo "== Runtime =="
-
+          echo "=== Runtime ==="
           ls -R /home/runner/crowdsec-runtime || true
 
-          echo "== Config =="
-
+          echo "=== Config ==="
           cat /etc/crowdsec/config.yaml || true
