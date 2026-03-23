@@ -8,24 +8,9 @@ jobs:
   hubtest:
     runs-on: ubuntu-latest
 
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
     steps:
-      # -----------------------------
-      # Checkout
-      # -----------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      # -----------------------------
-      # Install dependencies
-      # -----------------------------
-      - name: Install dependencies
-        run: |
-          set -e
-          sudo apt-get update
-          sudo apt-get install -y git rsync
 
       # -----------------------------
       # Install CrowdSec
@@ -39,43 +24,36 @@ jobs:
 
           CS_DIR=$(find . -maxdepth 1 -type d -name "crowdsec-v*" | head -n 1)
 
-          if [ -z "$CS_DIR" ]; then
-            echo "❌ CrowdSec directory not found"
-            exit 1
-          fi
-
-          if [ ! -f "$CS_DIR/cmd/crowdsec/crowdsec" ]; then
-            echo "❌ crowdsec binary missing"
-            exit 1
-          fi
-
-          if [ ! -f "$CS_DIR/cmd/crowdsec-cli/cscli" ]; then
-            echo "❌ cscli binary missing"
-            exit 1
-          fi
+          [ -n "$CS_DIR" ] || { echo "❌ CrowdSec dir missing"; exit 1; }
 
           sudo cp "$CS_DIR/cmd/crowdsec/crowdsec" /usr/local/bin/
           sudo cp "$CS_DIR/cmd/crowdsec-cli/cscli" /usr/local/bin/
-          sudo chmod +x /usr/local/bin/crowdsec /usr/local/bin/cscli
+          sudo chmod +x /usr/local/bin/*
 
-          echo "== Versions =="
-          crowdsec -version || { echo "❌ crowdsec failed"; exit 1; }
-          cscli version || { echo "❌ cscli failed"; exit 1; }
+          crowdsec -version || exit 1
+          cscli version || exit 1
 
       # -----------------------------
-      # Create minimal config (CRITICAL)
+      # FULL CONFIG (REAL FIX)
       # -----------------------------
-      - name: Create CrowdSec config
+      - name: Create full CrowdSec config
         run: |
           set -e
 
           sudo mkdir -p /etc/crowdsec
-          sudo rm -f /etc/crowdsec/config.yaml
 
-          echo "common:" | sudo tee -a /etc/crowdsec/config.yaml
+          # main config
+          echo "common:" | sudo tee /etc/crowdsec/config.yaml
           echo "  daemonize: false" | sudo tee -a /etc/crowdsec/config.yaml
           echo "  log_media: stdout" | sudo tee -a /etc/crowdsec/config.yaml
           echo "  log_level: info" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "crowdsec:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "  config_paths:" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "    - /etc/crowdsec/acquis.yaml" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "    - /etc/crowdsec/profiles.yaml" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "    - /etc/crowdsec/simulation.yaml" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "    - /etc/crowdsec/context.yaml" | sudo tee -a /etc/crowdsec/config.yaml
           echo "" | sudo tee -a /etc/crowdsec/config.yaml
           echo "db_config:" | sudo tee -a /etc/crowdsec/config.yaml
           echo "  type: sqlite" | sudo tee -a /etc/crowdsec/config.yaml
@@ -85,16 +63,18 @@ jobs:
           echo "  server:" | sudo tee -a /etc/crowdsec/config.yaml
           echo "    listen_uri: 127.0.0.1:8080" | sudo tee -a /etc/crowdsec/config.yaml
 
-          if [ ! -f /etc/crowdsec/config.yaml ]; then
-            echo "❌ config.yaml creation failed"
-            exit 1
-          fi
+          # required files
+          echo "" | sudo tee /etc/crowdsec/acquis.yaml
+          echo "policies: []" | sudo tee /etc/crowdsec/profiles.yaml
+          echo "simulation: false" | sudo tee /etc/crowdsec/simulation.yaml
+          echo "{}" | sudo tee /etc/crowdsec/context.yaml
+          echo "{}" | sudo tee /etc/crowdsec/local_api_credentials.yaml
+          echo "{}" | sudo tee /etc/crowdsec/online_api_credentials.yaml
 
-          echo "== Config =="
-          cat /etc/crowdsec/config.yaml
+          echo "✅ Full config created"
 
       # -----------------------------
-      # Init Hub
+      # Init hub
       # -----------------------------
       - name: Init hub
         run: |
@@ -102,39 +82,19 @@ jobs:
 
           mkdir -p ~/hub
 
-          echo "== Running cscli hub update =="
           cscli hub update || { echo "❌ hub update failed"; exit 1; }
 
-          if [ ! -f /etc/crowdsec/hub/.index.json ]; then
-            echo "❌ hub index missing"
-            exit 1
-          fi
+          [ -f /etc/crowdsec/hub/.index.json ] || { echo "❌ missing index"; exit 1; }
 
-          echo "== Copy hub =="
           sudo cp -r /etc/crowdsec/hub/* ~/hub/
           sudo chown -R $USER:$USER ~/hub
-
-          if [ ! -d ~/hub/parsers ]; then
-            echo "❌ hub parsers missing"
-            exit 1
-          fi
 
       # -----------------------------
       # Inject repo
       # -----------------------------
-      - name: Inject repo content
+      - name: Inject repo
         run: |
           set -e
-
-          if [ ! -d parsers ]; then
-            echo "❌ repo parsers missing"
-            exit 1
-          fi
-
-          if [ ! -d scenarios ]; then
-            echo "❌ repo scenarios missing"
-            exit 1
-          fi
 
           rsync -av parsers/ ~/hub/parsers/
           rsync -av scenarios/ ~/hub/scenarios/
@@ -147,43 +107,9 @@ jobs:
         run: |
           set -e
 
-          if [ ! -d "$GITHUB_WORKSPACE/.tests" ]; then
-            echo "❌ .tests missing in repo"
-            exit 1
-          fi
-
-          if [ ! -d ~/hub/.tests ]; then
-            echo "❌ hub .tests missing"
-            exit 1
-          fi
-
           mv ~/hub/.tests ~/hub/.tests.orig
           ln -s $GITHUB_WORKSPACE/.tests ~/hub/.tests
-
-          cp ~/hub/.tests.orig/template_* ~/hub/.tests/ || {
-            echo "❌ template copy failed"
-            exit 1
-          }
-
-      # -----------------------------
-      # Clean runtime
-      # -----------------------------
-      - name: Clean runtime/cache
-        run: |
-          rm -rf ~/hub/.tests/*/runtime || true
-          rm -rf ~/hub/.tests/*/result || true
-          rm -rf ~/hub/.tests/*/.cache || true
-
-      # -----------------------------
-      # PRE-RUN DEBUG
-      # -----------------------------
-      - name: Debug before run
-        run: |
-          echo "==== HUB ===="
-          ls -R ~/hub
-
-          echo "==== TESTS ===="
-          ls -R ~/hub/.tests
+          cp ~/hub/.tests.orig/template_* ~/hub/.tests/
 
       # -----------------------------
       # Run hubtest
@@ -192,33 +118,17 @@ jobs:
         run: |
           set -e
 
-          cscli hubtest run --all \
-            --hub ~/hub \
-            --report-success \
-            --debug || {
-              echo "❌ hubtest failed"
-              exit 1
-            }
+          cscli hubtest run --all --hub ~/hub --report-success || {
+            echo "❌ hubtest failed"
+            exit 1
+          }
 
       # -----------------------------
-      # POST FAILURE DEBUG
+      # Debug
       # -----------------------------
-      - name: Dump debug info on failure
+      - name: Debug on failure
         if: failure()
         run: |
-          echo "==== FINAL DEBUG ===="
-
-          echo "--- HUB ---"
+          echo "==== DEBUG ===="
           ls -R ~/hub || true
-
-          echo "--- TESTS ---"
-          ls -R ~/hub/.tests || true
-
-          echo "--- INDEX ---"
-          cat ~/hub/.index.json || echo "❌ missing index"
-
-          echo "--- CONFIG ---"
-          cat /etc/crowdsec/config.yaml || echo "❌ missing config"
-
-          echo "--- CSCLI ---"
-          cscli version || true
+          cat /etc/crowdsec/config.yaml || true
