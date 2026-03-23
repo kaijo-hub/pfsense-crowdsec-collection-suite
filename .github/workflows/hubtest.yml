@@ -1,4 +1,4 @@
-name: CrowdSec HubTest v1.7.6
+name: CrowdSec HubTest (v1.8+)
 
 on:
   push:
@@ -8,6 +8,9 @@ jobs:
   hubtest:
     runs-on: ubuntu-latest
 
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     steps:
       # -----------------------------
       # Checkout
@@ -16,72 +19,126 @@ jobs:
         uses: actions/checkout@v4
 
       # -----------------------------
-      # Install CrowdSec
+      # Install CrowdSec (v1.8+ latest)
       # -----------------------------
       - name: Install CrowdSec
         run: |
           set -e
 
-          wget -q https://github.com/crowdsecurity/crowdsec/releases/download/v1.7.6/crowdsec-release.tgz
+          wget -q https://github.com/crowdsecurity/crowdsec/releases/latest/download/crowdsec-release.tgz
           tar -xzf crowdsec-release.tgz
 
           CS_DIR=$(find . -maxdepth 1 -type d -name "crowdsec-v*" | head -n 1)
 
-          sudo cp "$CS_DIR/cmd/crowdsec/crowdsec" /usr/local/bin/
+          if [ -z "$CS_DIR" ]; then
+            echo "❌ CrowdSec archive extraction failed"
+            exit 1
+          fi
+
+          sudo cp "$CS_DIR/cmd/crowdsec/crowdsec" /usr/local/bin/ || { echo "❌ crowdsec binary missing"; exit 1; }
           sudo cp "$CS_DIR/cmd/crowdsec-cli/cscli" /usr/local/bin/ 2>/dev/null || true
           sudo cp "$CS_DIR/cmd/cscli/cscli" /usr/local/bin/ 2>/dev/null || true
 
           sudo chmod +x /usr/local/bin/crowdsec /usr/local/bin/cscli
 
+          echo "== Versions =="
+          crowdsec -version
+          cscli version
+
       # -----------------------------
-      # SYSTEM CONFIG (CRITICAL FIX)
+      # Create local config (NO /etc)
       # -----------------------------
-      - name: Setup system config
+      - name: Create CrowdSec config
         run: |
           set -e
 
-          sudo mkdir -p /etc/crowdsec
+          mkdir -p $GITHUB_WORKSPACE/crowdsec
 
-          echo "common:" | sudo tee /etc/crowdsec/config.yaml
-          echo "  daemonize: false" | sudo tee -a /etc/crowdsec/config.yaml
-          echo "  log_media: stdout" | sudo tee -a /etc/crowdsec/config.yaml
-          echo "  log_level: info" | sudo tee -a /etc/crowdsec/config.yaml
+          CONFIG="$GITHUB_WORKSPACE/crowdsec/config.yaml"
 
-          echo "db_config:" | sudo tee -a /etc/crowdsec/config.yaml
-          echo "  type: sqlite" | sudo tee -a /etc/crowdsec/config.yaml
-          echo "  db_path: /tmp/crowdsec.db" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "common:" > "$CONFIG"
+          echo "  daemonize: false" >> "$CONFIG"
+          echo "  log_media: stdout" >> "$CONFIG"
+          echo "  log_level: info" >> "$CONFIG"
 
-          echo "api:" | sudo tee -a /etc/crowdsec/config.yaml
-          echo "  server:" | sudo tee -a /etc/crowdsec/config.yaml
-          echo "    listen_uri: 127.0.0.1:8080" | sudo tee -a /etc/crowdsec/config.yaml
+          echo "db_config:" >> "$CONFIG"
+          echo "  type: sqlite" >> "$CONFIG"
+          echo "  db_path: /tmp/crowdsec.db" >> "$CONFIG"
 
-          cat /etc/crowdsec/config.yaml
+          echo "api:" >> "$CONFIG"
+          echo "  server:" >> "$CONFIG"
+          echo "    listen_uri: 127.0.0.1:8080" >> "$CONFIG"
 
-      # -----------------------------
-      # Hub init (official way)
-      # -----------------------------
-      - name: Init hub
-        run: |
-          set -e
-          cscli hub update
+          echo "✅ Config created:"
+          cat "$CONFIG"
 
       # -----------------------------
-      # Add repo as hub
+      # Validate repo structure
       # -----------------------------
-      - name: Register local hub
-        run: |
-          set -e
-          cscli hub add local $GITHUB_WORKSPACE
-
-      # -----------------------------
-      # Run hubtest (NO CONFIG OVERRIDE!)
-      # -----------------------------
-      - name: Run hubtest
+      - name: Validate repo structure
         run: |
           set -e
 
-          echo "== Running hubtest =="
+          if [ ! -d "$GITHUB_WORKSPACE/.tests" ]; then
+            echo "❌ Missing .tests directory"
+            exit 1
+          fi
+
+          if [ ! -d "$GITHUB_WORKSPACE/parsers" ]; then
+            echo "❌ Missing parsers directory"
+            exit 1
+          fi
+
+          if [ ! -d "$GITHUB_WORKSPACE/scenarios" ]; then
+            echo "❌ Missing scenarios directory"
+            exit 1
+          fi
+
+          echo "✅ Repo structure OK"
+
+      # -----------------------------
+      # Clean test runtime artifacts
+      # -----------------------------
+      - name: Clean test artifacts
+        run: |
+          set -e
+
+          find .tests -type d -name "runtime" -exec rm -rf {} + || true
+          find .tests -type d -name "results" -exec rm -rf {} + || true
+          find .tests -type d -name ".cache" -exec rm -rf {} + || true
+
+      # -----------------------------
+      # Run HubTests (v1.8+ clean mode)
+      # -----------------------------
+      - name: Run HubTests
+        run: |
+          set -e
+
+          CONFIG="$GITHUB_WORKSPACE/crowdsec/config.yaml"
+
+          if [ ! -f "$CONFIG" ]; then
+            echo "❌ Config file missing"
+            exit 1
+          fi
+
+          echo "== Running HubTests =="
 
           cscli hubtest run --all \
-            --hub $GITHUB_WORKSPACE \
+            --hub "$GITHUB_WORKSPACE" \
+            --config "$CONFIG" \
             --report-success
+
+      # -----------------------------
+      # Debug on failure
+      # -----------------------------
+      - name: Debug on failure
+        if: failure()
+        run: |
+          echo "==== WORKSPACE ===="
+          ls -R || true
+
+          echo "==== CONFIG ===="
+          cat $GITHUB_WORKSPACE/crowdsec/config.yaml || true
+
+          echo "==== TESTS ===="
+          ls -R .tests || true
