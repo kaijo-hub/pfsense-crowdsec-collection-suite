@@ -1,4 +1,4 @@
-name: CrowdSec HubTest
+name: CrowdSec HubTest (v1.8+ strict)
 
 on:
   push:
@@ -8,9 +8,6 @@ jobs:
   hubtest:
     runs-on: ubuntu-latest
 
-    env:
-      CONFIG_PATH: /usr/local/lib/crowdsec/config/config.yaml
-
     steps:
       # -----------------------------
       # Checkout
@@ -19,70 +16,105 @@ jobs:
         uses: actions/checkout@v4
 
       # -----------------------------
-      # Install CrowdSec
+      # Install CrowdSec (FORCE v1.8+)
       # -----------------------------
-      - name: Install CrowdSec
+      - name: Install CrowdSec v1.8+
         run: |
           set -e
 
-          wget -q https://github.com/crowdsecurity/crowdsec/releases/latest/download/crowdsec-release.tgz
-          tar -xzf crowdsec-release.tgz
+          echo "== Fetch latest release tag =="
+          TAG=$(curl -s https://api.github.com/repos/crowdsecurity/crowdsec/releases/latest | grep tag_name | cut -d '"' -f 4)
+
+          echo "Latest tag: $TAG"
+
+          if ! echo "$TAG" | grep -q "^v1\.[8-9]"; then
+            echo "❌ Latest version is NOT >= v1.8 (got $TAG)"
+            exit 1
+          fi
+
+          echo "== Download =="
+          wget -q https://github.com/crowdsecurity/crowdsec/releases/download/$TAG/crowdsec-release.tgz \
+          || { echo "❌ download failed"; exit 1; }
+
+          echo "== Extract =="
+          tar -xzf crowdsec-release.tgz \
+          || { echo "❌ extract failed"; exit 1; }
 
           CS_DIR=$(find . -maxdepth 1 -type d -name "crowdsec-v*" | head -n 1)
 
+          [ -z "$CS_DIR" ] && { echo "❌ extract dir not found"; exit 1; }
+
+          echo "== Install binaries =="
           sudo install -m 0755 "$CS_DIR/cmd/crowdsec/crowdsec" /usr/local/bin/crowdsec
           sudo install -m 0755 "$CS_DIR/cmd/crowdsec-cli/cscli" /usr/local/bin/cscli
 
-          sudo mkdir -p /usr/local/lib/crowdsec
-          sudo cp -r "$CS_DIR/config" /usr/local/lib/crowdsec/
+          echo "== Install full runtime =="
+          sudo mkdir -p /etc/crowdsec
+          sudo cp -r "$CS_DIR/config/"* /etc/crowdsec/
 
-          echo "== CONFIG EXISTS =="
-          ls -l $CONFIG_PATH || (echo "❌ config missing" && exit 1)
+          sudo mkdir -p /var/lib/crowdsec
+          sudo mkdir -p /var/log/crowdsec
 
-      # -----------------------------
-      # VERIFY --config WORKS
-      # -----------------------------
-      - name: Verify --config flag
-        run: |
-          set -e
+          sudo chown -R runner:runner /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec
 
-          echo "== Test 1: cscli version with config =="
+          echo "== Verify version =="
+          VERSION=$(cscli version | grep version | head -n1 | awk '{print $2}')
+          echo "Installed: $VERSION"
 
-          cscli version --config $CONFIG_PATH \
-          || (echo "❌ --config NOT accepted by cscli" && exit 1)
-
-          echo "== Test 2: invalid config path (must fail) =="
-
-          if cscli version --config /does/not/exist 2>/dev/null; then
-            echo "❌ --config ignored (this should have failed)"
+          if ! echo "$VERSION" | grep -q "^v1\.[8-9]"; then
+            echo "❌ Wrong version installed ($VERSION)"
             exit 1
-          else
-            echo "✅ --config is actually used"
           fi
 
       # -----------------------------
-      # DEBUG CONFIG LOADING
+      # Validate config load
       # -----------------------------
-      - name: Debug config loading
+      - name: Validate config
         run: |
           set -e
 
-          echo "== Running cscli with debug =="
+          echo "== Check config files =="
 
-          cscli hub update --config $CONFIG_PATH --debug \
-          || (echo "❌ hub update failed (config load issue)" && exit 1)
+          for f in config.yaml acquis.yaml profiles.yaml simulation.yaml context.yaml local_api_credentials.yaml online_api_credentials.yaml; do
+            if [ ! -f "/etc/crowdsec/$f" ]; then
+              echo "❌ Missing $f"
+              exit 1
+            fi
+          done
+
+          echo "== Test config loading =="
+
+          cscli hub list > /dev/null \
+          || { echo "❌ config not loadable"; exit 1; }
 
       # -----------------------------
-      # Prepare hub
+      # Init hub
+      # -----------------------------
+      - name: Init hub
+        run: |
+          set -e
+
+          echo "== hub update =="
+
+          cscli hub update \
+          || { echo "❌ hub update failed"; exit 1; }
+
+          if [ ! -f /etc/crowdsec/hub/.index.json ]; then
+            echo "❌ hub index missing"
+            exit 1
+          fi
+
+      # -----------------------------
+      # Prepare hub workspace
       # -----------------------------
       - name: Prepare hub
         run: |
           set -e
 
-          mkdir -p /home/runner/hub
+          mkdir -p ~/hub
 
-          cp -r /usr/local/lib/crowdsec/hub/* /home/runner/hub/ \
-          || (echo "❌ hub copy failed" && exit 1)
+          cp -r /etc/crowdsec/hub/* ~/hub/ \
+          || { echo "❌ hub copy failed"; exit 1; }
 
       # -----------------------------
       # Inject repo
@@ -91,44 +123,51 @@ jobs:
         run: |
           set -e
 
-          [ -d parsers ] && rsync -av parsers/ /home/runner/hub/parsers/
-          [ -d scenarios ] && rsync -av scenarios/ /home/runner/hub/scenarios/
-          [ -d collections ] && rsync -av collections/ /home/runner/hub/collections/
+          [ -d parsers ] && rsync -av parsers/ ~/hub/parsers/ || echo "⚠ no parsers"
+          [ -d scenarios ] && rsync -av scenarios/ ~/hub/scenarios/ || echo "⚠ no scenarios"
+          [ -d collections ] && rsync -av collections/ ~/hub/collections/ || echo "⚠ no collections"
 
-          rm -rf /home/runner/hub/.tests || true
-          ln -s $GITHUB_WORKSPACE/.tests /home/runner/hub/.tests
+          if [ ! -d "$GITHUB_WORKSPACE/.tests" ]; then
+            echo "❌ .tests missing"
+            exit 1
+          fi
+
+          rm -rf ~/hub/.tests || true
+          ln -s $GITHUB_WORKSPACE/.tests ~/hub/.tests
 
       # -----------------------------
-      # Run HubTest
+      # Run HubTests
       # -----------------------------
-      - name: Run HubTest
+      - name: Run HubTests
         run: |
           set -e
 
-          cd /home/runner/hub
+          cd ~/hub
 
-          cscli hubtest run --all \
-            --hub /home/runner/hub \
-            --config $CONFIG_PATH \
-            --report-success \
-          || (echo "❌ hubtest failed" && exit 1)
+          echo "== Running hubtest =="
+
+          cscli hubtest run --all --hub ~/hub --report-success \
+          || { echo "❌ hubtest failed"; exit 1; }
 
       # -----------------------------
-      # DEBUG
+      # Debug
       # -----------------------------
-      - name: Final Debug
+      - name: Debug on failure
         if: failure()
         run: |
           echo "==== DEBUG ===="
 
+          echo "--- VERSION ---"
+          cscli version
+
           echo "--- CONFIG ---"
-          cat $CONFIG_PATH || true
+          ls -l /etc/crowdsec
 
           echo "--- HUB ---"
-          ls -R /home/runner/hub || true
+          ls -R ~/hub || true
 
           echo "--- INDEX ---"
-          cat /usr/local/lib/crowdsec/hub/.index.json || echo "missing"
+          cat /etc/crowdsec/hub/.index.json || echo "missing"
 
-          echo "--- VERSION ---"
-          cscli version || true
+          echo "--- TESTS ---"
+          ls -R ~/hub/.tests || true
