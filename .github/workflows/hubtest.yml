@@ -60,10 +60,12 @@ jobs:
           ls -1 crowdsec-src | head -n 20
           [ -f crowdsec-src/Makefile ] || { echo "❌ Makefile missing"; exit 1; }
 
-          echo "== Build CrowdSec (force version) =="
+          echo "== Build CrowdSec (WASM RE2) =="
           cd crowdsec-src
 
           export BUILD_VERSION="v1.8.0-dev"
+          export BUILD_RE2_WASM=1
+          
           make build || { echo "❌ build failed"; exit 1; }
 
           [ -f cmd/crowdsec/crowdsec ] || { echo "❌ crowdsec binary missing"; exit 1; }
@@ -80,15 +82,15 @@ jobs:
           sudo mkdir -p /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec \
             || { echo "❌ mkdir failed"; exit 1; }
 
-          echo "== Install default config =="
+          echo "== Install default crowdsec config file =="
           sudo cp -r config/* /etc/crowdsec/ \
             || { echo "❌ config copy failed"; exit 1; }
 
-          echo "== Fix ownership =="
+          echo "== Fix ownership of crowdsec runtime folders =="
           sudo chown -R $(whoami):$(whoami) /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec \
             || { echo "❌ chown failed"; exit 1; }
 
-          echo "== Verify version =="
+          echo "== Verify cscli version =="
           cscli version || { echo "❌ cscli not working"; exit 1; }
 
           echo "== Prepare hub dir =="
