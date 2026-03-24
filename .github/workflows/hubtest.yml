@@ -150,12 +150,24 @@ jobs:
         run: |
           set -euo pipefail
 
+          echo "== Setup hub dir =="
+
+          export CROWDSEC_CONFIG_DIR=/etc/crowdsec
+          export HUB_DIR="$HOME/hub"
+
+          mkdir -p "$HUB_DIR"
+
+          echo "== Hub update =="
+
+          cscli hub update --hub "$HUB_DIR"
+
+          echo "== Verify index =="
+
+          ls -la "$HUB_DIR/.index.json"
+
           echo "== Run hubtest =="
 
-          cp -r . "$HOME/hub"
-          cd "$HOME/hub"
-
-          cscli hubtest run .
+          cscli hubtest run . --hub "$HUB_DIR"
 
       # -------------------------------------------------
       # 9. DEBUG ON FAILURE
