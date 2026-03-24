@@ -39,26 +39,35 @@ jobs:
         run: |
           set -euo pipefail
 
+          echo "== Prepare extraction dir =="
+          rm -rf src
+          mkdir src
+
           echo "== Extract tarball =="
+          tar -xzf crowdsec.tar.gz -C src --strip-components=1 || {
+            echo "❌ extract failed"
+            exit 1
+          }
 
-          tar -xzf crowdsec.tar.gz || { echo "❌ extract failed"; exit 1; }
+          echo "== Verify extracted files =="
+          ls -la src
 
-          DIR=$(find . -maxdepth 1 -type d -name "crowdsecurity-*" | head -n 1)
-
-          if [ -z "$DIR" ]; then
-            echo "❌ source dir not found"
+          if [ ! -f src/Makefile ]; then
+            echo "❌ invalid source (Makefile missing)"
             exit 1
           fi
 
-          echo "Source dir: $DIR"
+          if [ ! -d src/cmd ]; then
+            echo "❌ invalid source (cmd dir missing)"
+            exit 1
+          fi
 
-          cd "$DIR"
+          echo "== Export DIR =="
+          echo "DIR=$PWD/src" >> $GITHUB_ENV
 
-          echo "== List files =="
-          ls -la
-
-          echo "DIR=$DIR" >> $GITHUB_ENV
-
+          echo "== TAR CONTENT =="
+          tar -tzf crowdsec.tar.gz | head -20
+          
           [ -f Makefile ] || { echo "❌ invalid source (no Makefile)"; exit 1; }
 
       # -------------------------------------------------
