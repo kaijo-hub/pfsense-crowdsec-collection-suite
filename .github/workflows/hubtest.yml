@@ -1,4 +1,4 @@
-name: CrowdSec HubTest (master build go)
+name: CrowdSec HubTest (master build zip)
 
 on:
   push:
@@ -8,37 +8,61 @@ jobs:
   hubtest:
     runs-on: ubuntu-latest
 
-    env:
-      GO_VERSION: "1.22"
-
     steps:
       # -----------------------------
-      # Checkout repo
+      # Checkout repository
       # -----------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
       # -----------------------------
-      # Install Go
+      # Download CrowdSec master (NO GIT)
       # -----------------------------
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
+      - name: Download CrowdSec master
+        run: |
+          set -e
+
+          echo "== Download CrowdSec master ZIP =="
+
+          curl -L \
+            https://github.com/crowdsecurity/crowdsecurity/archive/refs/heads/master.zip \
+            -o crowdsec-master.zip \
+          || {
+            echo "❌ download failed"
+            exit 1
+          }
+
+          echo "== Unzip =="
+
+          unzip -q crowdsec-master.zip || {
+            echo "❌ unzip failed"
+            exit 1
+          }
+
+          CS_DIR=$(find . -maxdepth 1 -type d -name "crowdsecurity-master" | head -n 1)
+
+          if [ -z "$CS_DIR" ]; then
+            echo "❌ CrowdSec source dir not found"
+            exit 1
+          fi
+
+          echo "CS_DIR=$CS_DIR" >> $GITHUB_ENV
 
       # -----------------------------
-      # Build CrowdSec from master
+      # Install dependencies + build
       # -----------------------------
       - name: Build CrowdSec (master)
         run: |
           set -e
 
-          echo "== Clone CrowdSec master =="
+          echo "== Install build tools =="
 
-          git clone https://github.com/crowdsecurity/crowdsecurity.git
-          cd crowdsecurity
+          sudo apt-get update -y
+          sudo apt-get install -y golang make
 
-          echo "== Build cscli =="
+          echo "== Build CrowdSec =="
+
+          cd "$CS_DIR"
 
           make build || {
             echo "❌ build failed"
@@ -50,10 +74,10 @@ jobs:
           sudo install -m 0755 ./cmd/crowdsec/crowdsec /usr/local/bin/crowdsec
           sudo install -m 0755 ./cmd/crowdsec-cli/cscli /usr/local/bin/cscli
 
-          echo "== Verify build =="
+          echo "== Verify installation =="
 
           cscli version || {
-            echo "❌ cscli not working"
+            echo "❌ cscli failed"
             exit 1
           }
 
@@ -63,23 +87,23 @@ jobs:
           }
 
       # -----------------------------
-      # Install runtime config (master)
+      # Install runtime config
       # -----------------------------
-      - name: Install runtime config
+      - name: Install CrowdSec config
         run: |
           set -e
 
-          echo "== Install config tree =="
+          echo "== Install config =="
 
           sudo mkdir -p /etc/crowdsec
-          sudo cp -r crowdsecurity/config/* /etc/crowdsec/
+          sudo cp -r "$CS_DIR/config/"* /etc/crowdsec/
 
           sudo mkdir -p /var/lib/crowdsec
           sudo mkdir -p /var/log/crowdsec
 
           sudo chown -R runner:runner /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec
 
-          echo "== Validate required files =="
+          echo "== Validate config files =="
 
           for f in config.yaml acquis.yaml profiles.yaml simulation.yaml context.yaml; do
             if [ ! -f "/etc/crowdsec/$f" ]; then
@@ -89,7 +113,7 @@ jobs:
           done
 
       # -----------------------------
-      # Hub init
+      # Hub update
       # -----------------------------
       - name: Hub update
         run: |
@@ -124,11 +148,11 @@ jobs:
       # -----------------------------
       # Inject repo content
       # -----------------------------
-      - name: Inject repository content
+      - name: Inject local repository content
         run: |
           set -e
 
-          echo "== injecting parsers/scenarios =="
+          echo "== Inject parsers/scenarios/collections =="
 
           [ -d parsers ] && rsync -av parsers/ ~/hub/parsers/ || echo "⚠ no parsers"
           [ -d scenarios ] && rsync -av scenarios/ ~/hub/scenarios/ || echo "⚠ no scenarios"
@@ -143,9 +167,9 @@ jobs:
           ln -s "$GITHUB_WORKSPACE/.tests" ~/hub/.tests
 
       # -----------------------------
-      # Run hubtests
+      # Run hubtest
       # -----------------------------
-      - name: Run hubtests
+      - name: Run hubtest
         run: |
           set -e
 
@@ -161,7 +185,7 @@ jobs:
       # -----------------------------
       # Debug on failure
       # -----------------------------
-      - name: Debug
+      - name: Debug on failure
         if: failure()
         run: |
           echo "==== DEBUG ===="
