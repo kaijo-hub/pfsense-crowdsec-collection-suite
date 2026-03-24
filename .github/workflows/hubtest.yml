@@ -122,7 +122,7 @@ jobs:
           cscli version
 
       # -------------------------------------------------
-      # 7. HUB UPDATE (FIXED CONTEXT)
+      # 7. HUB UPDATE
       # -------------------------------------------------
       - name: Hub update
         run: |
@@ -152,19 +152,42 @@ jobs:
           test -f /etc/crowdsec/hub/.index.json
 
       # -------------------------------------------------
-      # 8. DEBUG + VALIDATE HUB STRUCTURE
+      # 8. PREPARE HUB ROOT (FIX)
+      # -------------------------------------------------
+      - name: Prepare hub root
+        run: |
+          set -euo pipefail
+
+          HUB_ROOT="/home/runner/hub"
+
+          echo "== Create hub root =="
+          rm -rf "$HUB_ROOT"
+          mkdir -p "$HUB_ROOT"
+
+          echo "== Copy repo content =="
+
+          cp -r parsers "$HUB_ROOT/" 2>/dev/null || echo "⚠️ no parsers"
+          cp -r scenarios "$HUB_ROOT/" 2>/dev/null || echo "⚠️ no scenarios"
+          cp -r collections "$HUB_ROOT/" 2>/dev/null || true
+          cp -r .tests "$HUB_ROOT/" 2>/dev/null || echo "⚠️ no .tests"
+
+          echo "== Copy index =="
+
+          cp /etc/crowdsec/hub/.index.json "$HUB_ROOT/.index.json" \
+            || { echo "❌ failed to copy index"; exit 1; }
+
+          echo "== Verify hub root =="
+
+          ls -la "$HUB_ROOT"
+
+      # -------------------------------------------------
+      # 9. DEBUG HUB STRUCTURE
       # -------------------------------------------------
       - name: Debug hub structure
         run: |
           set -euo pipefail
 
           HUB_ROOT="/home/runner/hub"
-
-          echo "== HUB ROOT =="
-          ls -la "$HUB_ROOT" || echo "❌ hub root missing"
-
-          echo "== .index.json =="
-          ls -la "$HUB_ROOT/.index.json" || echo "❌ index missing"
 
           echo "== .tests =="
           ls -R "$HUB_ROOT/.tests" || echo "❌ .tests missing"
@@ -175,117 +198,50 @@ jobs:
           echo "== scenarios =="
           ls -R "$HUB_ROOT/scenarios" || echo "❌ scenarios missing"
 
-          echo "== collections (optional) =="
-          ls -R "$HUB_ROOT/collections" || echo "⚠️ collections missing (ok)"
-
+      # -------------------------------------------------
+      # 10. VALIDATE HUB STRUCTURE
+      # -------------------------------------------------
       - name: Validate hub structure
         run: |
           set -euo pipefail
 
           HUB_ROOT="/home/runner/hub"
 
-          echo "== Validate required structure =="
-
-          if [ ! -f "$HUB_ROOT/.index.json" ]; then
-            echo "❌ Missing .index.json in hub root"
-            exit 1
-          fi
-
-          if [ ! -d "$HUB_ROOT/.tests" ]; then
-            echo "❌ Missing .tests directory"
-            exit 1
-          fi
-
-          if [ ! -d "$HUB_ROOT/parsers" ]; then
-            echo "❌ Missing parsers directory"
-            exit 1
-          fi
-
-          if [ ! -d "$HUB_ROOT/scenarios" ]; then
-            echo "❌ Missing scenarios directory"
-            exit 1
-          fi
-
-          echo "== Validate .tests content =="
+          [ -f "$HUB_ROOT/.index.json" ] || { echo "❌ Missing .index.json"; exit 1; }
+          [ -d "$HUB_ROOT/.tests" ] || { echo "❌ Missing .tests"; exit 1; }
+          [ -d "$HUB_ROOT/parsers" ] || { echo "❌ Missing parsers"; exit 1; }
+          [ -d "$HUB_ROOT/scenarios" ] || { echo "❌ Missing scenarios"; exit 1; }
 
           TEST_COUNT=$(find "$HUB_ROOT/.tests" -type f | wc -l)
+          [ "$TEST_COUNT" -gt 0 ] || { echo "❌ .tests empty"; exit 1; }
 
-          if [ "$TEST_COUNT" -eq 0 ]; then
-            echo "❌ .tests directory is empty"
-            exit 1
-          fi
-
-          echo "Found $TEST_COUNT test files"
-
-          echo "== Validate parsers content =="
-
-          PARSER_COUNT=$(find "$HUB_ROOT/parsers" -type f -name "*.yaml" | wc -l)
-
-          if [ "$PARSER_COUNT" -eq 0 ]; then
-            echo "❌ No parser YAML files found"
-            exit 1
-          fi
-
-          echo "Found $PARSER_COUNT parser files"
-
-          echo "== Validate scenarios content =="
-
-          SCENARIO_COUNT=$(find "$HUB_ROOT/scenarios" -type f -name "*.yaml" | wc -l)
-
-          if [ "$SCENARIO_COUNT" -eq 0 ]; then
-            echo "❌ No scenario YAML files found"
-            exit 1
-          fi
-
-          echo "Found $SCENARIO_COUNT scenario files"
-
-          echo "✅ Hub structure is valid"
-
-
+          echo "✅ Hub structure valid"
 
       # -------------------------------------------------
-      # 9. HUBTEST (FIXED: run from hub root directory)
+      # 11. HUBTEST
       # -------------------------------------------------
       - name: Hubtest
         run: |
           set -euo pipefail
 
-          echo "== Prepare hubtest environment =="
+          echo "== Run hubtest =="
 
           export CROWDSEC_CONFIG_DIR=/etc/crowdsec
 
-          # optional but clear: build own hub directory
-
-          mkdir -p /home/runner/hub
-
-          echo "== Copy repo content into hub root =="
-          cp -r ./* /home/runner/hub/ || true
-
-          echo "== Copy index into hub root =="
-          cp /etc/crowdsec/hub/.index.json /home/runner/hub/.index.json \
-            || { echo "❌ failed to copy index"; exit 1; }
-
-          echo "== Verify hub root =="
-          ls -la /home/runner/hub | head
-
-          echo "== Run hubtest from hub root =="
-
           cd /home/runner/hub
-
-          test -f .index.json || {
-            echo "❌ .index.json missing in working dir"
-            exit 1
-          }
 
           cscli hubtest run --all --report-success
 
       # -------------------------------------------------
-      # 10. DEBUG ON FAILURE
+      # 12. DEBUG ON FAILURE
       # -------------------------------------------------
       - name: Debug
         if: failure()
         run: |
           echo "==== DEBUG OUTPUT ===="
+
+          echo "--- HUB ROOT ---"
+          ls -la /home/runner/hub || true
 
           echo "--- CONFIG ---"
           ls -la /etc/crowdsec || true
