@@ -27,7 +27,6 @@ jobs:
 
           SIZE=$(stat -c%s crowdsec.tar.gz)
           echo "Downloaded size: $SIZE"
-
           if [ "$SIZE" -lt 100000 ]; then
             echo "❌ tarball too small (download error)"
             exit 1
@@ -59,6 +58,8 @@ jobs:
           ls -la
 
           echo "DIR=$DIR" >> $GITHUB_ENV
+
+          [ -f Makefile ] || { echo "❌ invalid source (no Makefile)"; exit 1; }
 
       # -------------------------------------------------
       # BUILD (FIXED VERSION)
