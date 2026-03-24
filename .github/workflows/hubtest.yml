@@ -128,11 +128,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "== Fix hub dir =="
+          echo "== Setup hub dir =="
 
           sudo mkdir -p /etc/crowdsec/hub
           sudo chmod 775 /etc/crowdsec/hub
 
+          echo "== Force config hub_dir ==" 
+
+          sudo sed -i 's|hub_dir:.*|hub_dir: /etc/crowdsec/hub|g' /etc/crowdsec/config.yaml || true
+          grep -n "hub_dir" /etc/crowdsec/config.yaml || true
+     
           export CROWDSEC_CONFIG_DIR=/etc/crowdsec
 
           echo "== Run hub update =="
@@ -153,21 +158,19 @@ jobs:
           echo "== Setup hub dir =="
 
           export CROWDSEC_CONFIG_DIR=/etc/crowdsec
-          export HUB_DIR="$HOME/hub"
-
-          mkdir -p "$HUB_DIR"
+          
 
           echo "== Hub update =="
 
-          cscli hub update --hub "$HUB_DIR"
+          cscli hub update
 
           echo "== Verify index =="
 
-          ls -la "$HUB_DIR/.index.json"
+          test -f /etc/crowdsec/hub/.index.json"
 
           echo "== Run hubtest =="
 
-          cscli hubtest run . --hub "$HUB_DIR"
+          cscli hubtest run .
 
       # -------------------------------------------------
       # 9. DEBUG ON FAILURE
