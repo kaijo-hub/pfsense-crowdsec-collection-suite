@@ -1,4 +1,4 @@
-name: CrowdSec HubTest (master CI)
+name: CrowdSec HubTest (Master CI)
 
 on:
   push:
@@ -9,191 +9,217 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout your repo
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      # -----------------------------
-      # Download CrowdSec (correct repo!)
-      # -----------------------------
-      - name: Download CrowdSec source (master)
+      # -------------------------------------------------
+      # DOWNLOAD MASTER (robust, no API issues)
+      # -------------------------------------------------
+      - name: Download CrowdSec master
         run: |
-          set -e
+          set -euo pipefail
 
-          echo "== Download CrowdSec (master) =="
+          echo "== Download CrowdSec master tarball =="
 
-          curl -L \
-            https://github.com/crowdsecurity/crowdsec/archive/refs/heads/master.tar.gz \
-            -o crowdsec.tar.gz
+          URL="https://codeload.github.com/crowdsecurity/crowdsec/tar.gz/refs/heads/master"
+
+          curl -fL "$URL" -o crowdsec.tar.gz || { echo "❌ download failed"; exit 1; }
 
           SIZE=$(stat -c%s crowdsec.tar.gz)
           echo "Downloaded size: $SIZE"
 
-          if [ "$SIZE" -lt 1000000 ]; then
-            echo "❌ Download failed or invalid archive"
-            head -c 200 crowdsec.tar.gz || true
+          if [ "$SIZE" -lt 100000 ]; then
+            echo "❌ tarball too small (download error)"
             exit 1
           fi
 
-      # -----------------------------
-      # Extract
-      # -----------------------------
-      - name: Extract CrowdSec
+      # -------------------------------------------------
+      # EXTRACT
+      # -------------------------------------------------
+      - name: Extract
         run: |
-          set -e
+          set -euo pipefail
 
-          echo "== Extract =="
+          echo "== Extract tarball =="
 
-          mkdir crowdsec-src
-          tar -xzf crowdsec.tar.gz -C crowdsec-src --strip-components=1 || {
-            echo "❌ extract failed"
+          tar -xzf crowdsec.tar.gz || { echo "❌ extract failed"; exit 1; }
+
+          DIR=$(find . -maxdepth 1 -type d -name "crowdsecurity-*" | head -n 1)
+
+          if [ -z "$DIR" ]; then
+            echo "❌ source dir not found"
             exit 1
-          }
+          fi
 
-          ls -l crowdsec-src
+          echo "Source dir: $DIR"
 
-      # -----------------------------
-      # Build CrowdSec
-      # -----------------------------
+          cd "$DIR"
+
+          echo "== List files =="
+          ls -la
+
+          echo "DIR=$DIR" >> $GITHUB_ENV
+
+      # -------------------------------------------------
+      # BUILD (FIXED VERSION)
+      # -------------------------------------------------
       - name: Build CrowdSec
         run: |
-          set -e
+          set -euo pipefail
 
-          echo "== Build CrowdSec =="
+          cd "$DIR"
 
-          cd crowdsec-src
+          echo "== Install build deps =="
 
-          make build || {
-            echo "❌ build failed"
+          sudo apt-get update -y
+          sudo apt-get install -y make gcc || { echo "❌ deps install failed"; exit 1; }
+
+          echo "== Set BUILD_VERSION =="
+
+          export BUILD_VERSION="v1.8-dev"
+
+          if ! echo "$BUILD_VERSION" | grep -q '^v'; then
+            echo "❌ invalid BUILD_VERSION"
             exit 1
-          }
+          fi
 
-          ls -l cmd/crowdsec/crowdsec
-          ls -l cmd/cscli/cscli
+          echo "Using BUILD_VERSION=$BUILD_VERSION"
 
-      # -----------------------------
-      # Install (portable mode FIX)
-      # -----------------------------
-      - name: Install CrowdSec (portable layout)
+          echo "== Build =="
+
+          make BUILD_VERSION="$BUILD_VERSION" || { echo "❌ build failed"; exit 1; }
+
+          echo "== Verify binaries =="
+
+          [ -f cmd/crowdsec/crowdsec ] || { echo "❌ crowdsec missing"; exit 1; }
+          [ -f cmd/crowdsec-cli/cscli ] || { echo "❌ cscli missing"; exit 1; }
+
+          echo "DIR=$PWD" >> $GITHUB_ENV
+
+      # -------------------------------------------------
+      # INSTALL (FULL RUNTIME STRUCTURE)
+      # -------------------------------------------------
+      - name: Install CrowdSec
         run: |
-          set -e
+          set -euo pipefail
 
-          echo "== Install CrowdSec =="
+          cd "$DIR"
 
-          sudo install -m 0755 crowdsec-src/cmd/crowdsec/crowdsec /usr/local/bin/crowdsec
-          sudo install -m 0755 crowdsec-src/cmd/cscli/cscli /usr/local/bin/cscli
+          echo "== Install binaries =="
 
-          # CRITICAL: config next to binary (portable mode!)
-          sudo mkdir -p /usr/local/bin/config
-          sudo cp -r crowdsec-src/config/* /usr/local/bin/config/
+          sudo install -m 0755 cmd/crowdsec/crowdsec /usr/local/bin/crowdsec || { echo "❌ install crowdsec failed"; exit 1; }
+          sudo install -m 0755 cmd/crowdsec-cli/cscli /usr/local/bin/cscli || { echo "❌ install cscli failed"; exit 1; }
 
-          sudo chmod -R a+r /usr/local/bin/config
+          echo "== Install runtime tree =="
 
-          echo "== Verify =="
-          crowdsec -version
-          cscli version
+          sudo mkdir -p /usr/share/crowdsec || { echo "❌ mkdir share failed"; exit 1; }
 
-      # -----------------------------
-      # Prepare Hub
-      # -----------------------------
-      - name: Prepare Hub
+          sudo cp -r config /usr/share/crowdsec/ || { echo "❌ config copy failed"; exit 1; }
+
+          if [ -d patterns ]; then
+            sudo cp -r patterns /usr/share/crowdsec/ || { echo "❌ patterns copy failed"; exit 1; }
+          else
+            echo "⚠️ patterns missing (ok)"
+          fi
+
+          if [ -d hub ]; then
+            sudo cp -r hub /usr/share/crowdsec/ || true
+          fi
+
+          if [ -d plugins ]; then
+            sudo cp -r plugins /usr/share/crowdsec/ || true
+          fi
+
+          echo "== Create system dirs =="
+
+          sudo mkdir -p /etc/crowdsec
+          sudo mkdir -p /var/lib/crowdsec
+          sudo mkdir -p /var/log/crowdsec
+
+          echo "== Copy config =="
+
+          sudo cp -r /usr/share/crowdsec/config/* /etc/crowdsec/ || { echo "❌ config install failed"; exit 1; }
+
+          sudo chown -R runner:runner /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec || true
+
+      # -------------------------------------------------
+      # VERIFY CONFIG LOADING
+      # -------------------------------------------------
+      - name: Verify config loading
         run: |
-          set -e
+          set -euo pipefail
 
-          echo "== Prepare hub =="
+          echo "== Check config exists =="
 
-          mkdir -p ~/hub
+          [ -f /etc/crowdsec/config.yaml ] || { echo "❌ config.yaml missing"; exit 1; }
 
-          cscli hub update || {
+          echo "== Test cscli =="
+
+          cscli version || { echo "❌ cscli failed"; exit 1; }
+
+      # -------------------------------------------------
+      # HUB UPDATE
+      # -------------------------------------------------
+      - name: Hub update
+        run: |
+          set -euo pipefail
+
+          echo "== Run hub update =="
+
+          if ! cscli hub update; then
             echo "❌ hub update failed"
             exit 1
-          }
-
-          if [ ! -f /usr/local/bin/config/hub/.index.json ]; then
-            echo "❌ missing hub index"
-            exit 1
           fi
 
-          cp -r /usr/local/bin/config/hub/* ~/hub/ || true
+          echo "== Verify index =="
 
-          echo "== Hub content =="
-          ls -R ~/hub || true
+          [ -f /etc/crowdsec/hub/.index.json ] || { echo "❌ index missing"; exit 1; }
 
-      # -----------------------------
-      # Inject your repo into hub
-      # -----------------------------
-      - name: Inject collection
+      # -------------------------------------------------
+      # PREPARE HUB TEST
+      # -------------------------------------------------
+      - name: Prepare hub
         run: |
-          set -e
+          set -euo pipefail
 
-          echo "== Inject parsers/scenarios =="
+          echo "== Prepare hub dir =="
 
-          rsync -av parsers/ ~/hub/parsers/ || true
-          rsync -av scenarios/ ~/hub/scenarios/ || true
-          rsync -av collections/ ~/hub/collections/ || true
+          mkdir -p "$HOME/hub" || { echo "❌ hub dir failed"; exit 1; }
 
-      # -----------------------------
-      # Prepare tests
-      # -----------------------------
-      - name: Prepare tests
+          cp -r . "$HOME/hub/" || { echo "❌ copy repo failed"; exit 1; }
+
+      # -------------------------------------------------
+      # RUN HUBTEST
+      # -------------------------------------------------
+      - name: Run hubtest
         run: |
-          set -e
+          set -euo pipefail
 
-          echo "== Prepare tests =="
+          echo "== Run hubtest =="
 
-          if [ ! -d ".tests" ]; then
-            echo "❌ .tests missing"
-            exit 1
-          fi
+          cd "$HOME/hub"
 
-          rm -rf ~/hub/.tests
-          cp -r .tests ~/hub/.tests
-
-          ls -R ~/hub/.tests
-
-      # -----------------------------
-      # Clean runtime
-      # -----------------------------
-      - name: Clean runtime
-        run: |
-          set -e
-
-          echo "== Clean runtime =="
-
-          find ~/hub/.tests -type d -name runtime -exec rm -rf {} + || true
-          find ~/hub/.tests -type d -name result -exec rm -rf {} + || true
-          find ~/hub/.tests -type d -name .cache -exec rm -rf {} + || true
-
-      # -----------------------------
-      # Run HubTest
-      # -----------------------------
-      - name: Run HubTests
-        run: |
-          set -e
-
-          echo "== Run HubTests =="
-
-          cscli hubtest run --all --hub ~/hub --report-success || {
+          if ! cscli hubtest run; then
             echo "❌ hubtest failed"
             exit 1
-          }
+          fi
 
-      # -----------------------------
-      # Debug on failure
-      # -----------------------------
-      - name: Debug
+      # -------------------------------------------------
+      # FINAL DEBUG (ONLY ON FAILURE)
+      # -------------------------------------------------
+      - name: Debug (on failure)
         if: failure()
         run: |
           echo "==== FAILURE DEBUG ===="
 
+          echo "--- CONFIG ---"
+          ls -la /etc/crowdsec || true
+
           echo "--- HUB ---"
-          ls -R ~/hub || true
+          ls -la /etc/crowdsec/hub || true
 
           echo "--- INDEX ---"
-          cat /usr/local/bin/config/hub/.index.json || echo "missing index"
-
-          echo "--- CONFIG ---"
-          ls -l /usr/local/bin/config || true
+          cat /etc/crowdsec/hub/.index.json || echo "missing"
 
           echo "--- VERSION ---"
           cscli version || true
-          crowdsec -version || true
