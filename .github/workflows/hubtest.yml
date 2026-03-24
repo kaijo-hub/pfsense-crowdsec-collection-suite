@@ -38,74 +38,71 @@ jobs:
       - name: Extract
         run: |
           set -euo pipefail
+      
+                # -------------------------------------------------
+      # EXTRACT (ROBUST + DEBUG + VALIDATION)
+      # -------------------------------------------------
+      - name: Extract
+        run: |
+          set -euo pipefail
 
-          echo "== Install deps =="
-          sudo apt-get update -qq || { echo "❌ apt update failed"; exit 1; }
-          sudo apt-get install -y -qq curl tar make gcc git jq || { echo "❌ deps install failed"; exit 1; }
+          echo "== Prepare clean workspace =="
 
-          echo "== Download CrowdSec master tarball =="
-          curl -L --fail https://codeload.github.com/crowdsecurity/crowdsec/tar.gz/refs/heads/master -o crowdsec.tar.gz \
-            || { echo "❌ download failed"; exit 1; }
+          rm -rf crowdsec-src
+          mkdir -p crowdsec-src
+
+          echo "== Validate tarball =="
+
+          if [ ! -f crowdsec.tar.gz ]; then
+            echo "❌ tarball missing"
+            exit 1
+          fi
 
           SIZE=$(stat -c%s crowdsec.tar.gz || echo 0)
-          echo "Downloaded size: $SIZE"
-          [ "$SIZE" -gt 100000 ] || { echo "❌ tarball too small"; exit 1; }
+          echo "Tarball size: $SIZE"
+
+          if [ "$SIZE" -lt 100000 ]; then
+            echo "❌ tarball too small → download likely broken"
+            exit 1
+          fi
 
           echo "== Extract tarball =="
-          mkdir -p crowdsec-src
+
           tar -xzf crowdsec.tar.gz -C crowdsec-src --strip-components=1 \
-            || { echo "❌ extract failed"; exit 1; }
+            || {
+              echo "❌ extraction failed"
+              echo "== DEBUG: tar listing =="
+              tar -tzf crowdsec.tar.gz | head -n 50 || true
+              exit 1
+            }
 
-          echo "== Verify extraction =="
-          ls -1 crowdsec-src | head -n 20
-          [ -f crowdsec-src/Makefile ] || { echo "❌ Makefile missing"; exit 1; }
+          echo "== Validate extracted structure =="
 
-          echo "== Build CrowdSec (WASM RE2) =="
-          cd crowdsec-src
+          if [ ! -f crowdsec-src/Makefile ]; then
+            echo "❌ Makefile missing → invalid source tree"
+            echo "== DEBUG: extracted content =="
+            ls -R crowdsec-src | head -n 200 || true
+            exit 1
+          fi
 
-          export BUILD_VERSION="v1.8.0-dev"
-          export BUILD_RE2_WASM=1
-          
-          make build || { echo "❌ build failed"; exit 1; }
+          echo "== Basic sanity check =="
 
-          [ -f cmd/crowdsec/crowdsec ] || { echo "❌ crowdsec binary missing"; exit 1; }
-          [ -f cmd/crowdsec-cli/cscli ] || { echo "❌ cscli binary missing"; exit 1; }
+          REQUIRED_FILES=(
+            "go.mod"
+            "cmd"
+            "pkg"
+            "config"
+          )
 
-          echo "== Install binaries =="
-          sudo install -m 0755 cmd/crowdsec/crowdsec /usr/local/bin/crowdsec \
-            || { echo "❌ install crowdsec failed"; exit 1; }
+          for f in "${REQUIRED_FILES[@]}"; do
+            if [ ! -e "crowdsec-src/$f" ]; then
+              echo "❌ missing required component: $f"
+              exit 1
+            fi
+          done
 
-          sudo install -m 0755 cmd/crowdsec-cli/cscli /usr/local/bin/cscli \
-            || { echo "❌ install cscli failed"; exit 1; }
+          echo "== Extract OK =="
 
-          echo "== Prepare runtime dirs =="
-          sudo mkdir -p /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec \
-            || { echo "❌ mkdir failed"; exit 1; }
-
-          echo "== Install default crowdsec config file =="
-          sudo cp -r config/* /etc/crowdsec/ \
-            || { echo "❌ config copy failed"; exit 1; }
-
-          echo "== Fix ownership of crowdsec runtime folders =="
-          sudo chown -R $(whoami):$(whoami) /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec \
-            || { echo "❌ chown failed"; exit 1; }
-
-          echo "== Verify cscli version =="
-          cscli version || { echo "❌ cscli not working"; exit 1; }
-
-          echo "== Prepare hub dir =="
-          mkdir -p "$HOME/hub" || { echo "❌ hub dir failed"; exit 1; }
-
-          echo "== Run hub update =="
-          cscli hub update || { echo "❌ hub update failed"; exit 1; }
-
-          echo "== Verify hub index =="
-          [ -f /etc/crowdsec/hub/.index.json ] || { echo "❌ missing hub index"; exit 1; }
-
-          echo "== Run hubtest =="
-          cscli hubtest run . || { echo "❌ hubtest failed"; exit 1; }
-
-          echo "== SUCCESS =="
 
       # -------------------------------------------------
       # BUILD (FIXED VERSION)
