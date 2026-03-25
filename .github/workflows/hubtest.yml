@@ -106,11 +106,11 @@ jobs:
           sudo install -m 0755 cmd/crowdsec/crowdsec /usr/local/bin/crowdsec
           sudo install -m 0755 cmd/crowdsec-cli/cscli /usr/local/bin/cscli
 
-          sudo mkdir -p /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec /etc/crowdsec/hub
+          sudo mkdir -p /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec
 
           sudo cp -r config/* /etc/crowdsec/
 
-          sudo chown -R runner:runner /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec /etc/crowdsec/hub
+          sudo chown -R runner:runner /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec
 
       # -------------------------------------------------
       # 6. VERIFY INSTALL
@@ -118,59 +118,55 @@ jobs:
       - name: Verify install
         run: |
           set -euo pipefail
-
           cscli version
 
       # -------------------------------------------------
-      # 7. HUB UPDATE
+      # 7. (OPTIONAL) HUB UPDATE (INDEX ONLY)
       # -------------------------------------------------
-      - name: Hub update
+      - name: Hub update (index only)
         run: |
           set -euo pipefail
 
-          echo "== Setup hub dir =="
-
-          sudo mkdir -p /etc/crowdsec/hub
-          sudo chmod 775 /etc/crowdsec/hub
-
-          echo "== Ensure hub_dir in config =="
+          mkdir -p /etc/crowdsec/hub
 
           if ! grep -q "hub_dir:" /etc/crowdsec/config.yaml; then
-            echo "hub_dir: /etc/crowdsec/hub" | sudo tee -a /etc/crowdsec/config.yaml
+            echo "hub_dir: /etc/crowdsec/hub" >> /etc/crowdsec/config.yaml
           fi
 
-          grep -n "hub_dir" /etc/crowdsec/config.yaml || true
-
-          export CROWDSEC_CONFIG_DIR=/etc/crowdsec
-
-          echo "== Run hub update =="
-
-          cscli hub update
-
-          echo "== Verify index =="
-
-          test -f /etc/crowdsec/hub/.index.json
+          cscli hub update || true
 
       # -------------------------------------------------
-      # 8. PREPARE HUB ROOT (FIX)
+      # 8. FETCH FULL HUB (FIX)
+      # -------------------------------------------------
+      - name: Fetch CrowdSec Hub
+        run: |
+          set -euo pipefail
+
+          HUB_SRC="/home/runner/hub-src"
+
+          echo "== Clone CrowdSec Hub =="
+
+          git clone --depth 1 https://github.com/crowdsecurity/hub.git "$HUB_SRC"
+
+          echo "== Verify hub content =="
+          ls -R "$HUB_SRC"
+
+      # -------------------------------------------------
+      # 9. PREPARE HUB ROOT (FIXED)
       # -------------------------------------------------
       - name: Prepare hub root
         run: |
           set -euo pipefail
 
           HUB_ROOT="/home/runner/hub"
+          HUB_SRC="/home/runner/hub-src"
 
           echo "== Create hub root =="
           rm -rf "$HUB_ROOT"
           mkdir -p "$HUB_ROOT"
 
-          echo "== Copy Full Crowdsec Hub =="
-          if [ ! -d /etc/crowdsec/hub ]; then
-            echo "❌ CrowdSec hub not found"
-            exit 1
-          fi
-
-          cp -r /etc/crowdsec/hub/* "$HUB_ROOT/"
+          echo "== Copy FULL Hub =="
+          cp -r "$HUB_SRC"/* "$HUB_ROOT/"
 
           echo "== Inject repo overrides =="
           [ -d parsers ] && rsync -av parsers/ "$HUB_ROOT/parsers/" || echo "⚠️ no parsers"
@@ -181,11 +177,10 @@ jobs:
           cp -r .tests "$HUB_ROOT/.tests"
 
           echo "== Verify hub root =="
-
           ls -R "$HUB_ROOT"
 
       # -------------------------------------------------
-      # 9. DEBUG HUB STRUCTURE
+      # 10. DEBUG HUB STRUCTURE
       # -------------------------------------------------
       - name: Debug hub structure
         run: |
@@ -203,7 +198,7 @@ jobs:
           ls -R "$HUB_ROOT/scenarios" || echo "❌ scenarios missing"
 
       # -------------------------------------------------
-      # 10. VALIDATE HUB STRUCTURE
+      # 11. VALIDATE HUB STRUCTURE
       # -------------------------------------------------
       - name: Validate hub structure
         run: |
@@ -222,7 +217,7 @@ jobs:
           echo "✅ Hub structure valid"
 
       # -------------------------------------------------
-      # 11. HUBTEST
+      # 12. HUBTEST
       # -------------------------------------------------
       - name: Hubtest
         run: |
@@ -237,7 +232,7 @@ jobs:
           cscli hubtest run --all --report-success
 
       # -------------------------------------------------
-      # 12. DEBUG ON FAILURE
+      # 13. DEBUG ON FAILURE
       # -------------------------------------------------
       - name: Debug
         if: failure()
@@ -249,9 +244,6 @@ jobs:
 
           echo "--- CONFIG ---"
           ls -la /etc/crowdsec || true
-
-          echo "--- HUB ---"
-          ls -la /etc/crowdsec/hub || true
 
           echo "--- VERSION ---"
           cscli version || true
