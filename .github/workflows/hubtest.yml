@@ -180,8 +180,13 @@ jobs:
           sed -i 's|hub_dir:.*|hub_dir: /home/runner/hub|' /etc/crowdsec/config.yaml || \
           echo "hub_dir: /home/runner/hub" >> /etc/crowdsec/config.yaml
 
-          echo "== Generate .index.json =="
+          echo "== Force rebuid .index.json =="
+
+          rm -f "$HUB_ROOT/.index.json" /etc/crowdsec/hub/.index.json 2>/dev/null || true
           cscli hub update
+
+          echo "== DEBUG hub list =="
+          cscli hub list || true
 
           echo "== Verify index =="
           test -f "$HUB_ROOT/.index.json" || { echo "❌ index generation failed"; exit 1; }
