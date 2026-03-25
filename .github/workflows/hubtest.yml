@@ -164,21 +164,25 @@ jobs:
           rm -rf "$HUB_ROOT"
           mkdir -p "$HUB_ROOT"
 
-          echo "== Copy repo content =="
+          echo "== Copy Full Crowdsec Hub =="
+          if [ ! -d /etc/crowdsec/hub ]; then
+            echo "❌ CrowdSec hub not found"
+            exit 1
+          fi
 
-          cp -r parsers "$HUB_ROOT/" 2>/dev/null || echo "⚠️ no parsers"
-          cp -r scenarios "$HUB_ROOT/" 2>/dev/null || echo "⚠️ no scenarios"
-          cp -r collections "$HUB_ROOT/" 2>/dev/null || true
-          cp -r .tests "$HUB_ROOT/" 2>/dev/null || echo "⚠️ no .tests"
+          cp -r /etc/crowdsec/hub/* "$HUB_ROOT/"
 
-          echo "== Copy index =="
+          echo "== Inject repo overrides =="
+          [ -d parsers ] && rsync -av parsers/ "$HUB_ROOT/parsers/" || echo "⚠️ no parsers"
+          [ -d scenarios ] && rsync -av scenarios/ "$HUB_ROOT/scenarios/" || echo "⚠️ no scenarios"
+          [ -d collections ] && rsync -av collections/ "$HUB_ROOT/collections/" || true
 
-          cp /etc/crowdsec/hub/.index.json "$HUB_ROOT/.index.json" \
-            || { echo "❌ failed to copy index"; exit 1; }
+          echo "== Copy tests =="
+          cp -r .tests "$HUB_ROOT/.tests"
 
           echo "== Verify hub root =="
 
-          ls -la "$HUB_ROOT"
+          ls -R "$HUB_ROOT"
 
       # -------------------------------------------------
       # 9. DEBUG HUB STRUCTURE
