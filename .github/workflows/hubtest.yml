@@ -176,6 +176,16 @@ jobs:
           echo "== Copy tests =="
           cp -r .tests "$HUB_ROOT/.tests"
 
+          echo "== Set hub_dir to HUB_ROOT =="
+          sed -i 's|hub_dir:.*|hub_dir: /home/runner/hub|' /etc/crowdsec/config.yaml || \
+          echo "hub_dir: /home/runner/hub" >> /etc/crowdsec/config.yaml
+
+          echo "== Generate .index.json =="
+          cscli hub update
+
+          echo "== Verify index =="
+          test -f "$HUB_ROOT/.index.json" || { echo "❌ index generation failed"; exit 1; }
+
           echo "== Verify hub root =="
           ls -R "$HUB_ROOT"
 
