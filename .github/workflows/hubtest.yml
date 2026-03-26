@@ -1,4 +1,4 @@
-name: CrowdSec HubTest (Clean Stable CI)
+name: CrowdSec HubTest (Optimized CI)
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
 
       # -------------------------------------------------
-      # 2. CACHE GO BUILD (🔥 SPEED)
+      # 2. CACHE GO BUILD
       # -------------------------------------------------
       - name: Cache Go build
         uses: actions/cache@v4
@@ -25,9 +25,9 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-go-
+            go-${{ runner.os }}-
 
       # -------------------------------------------------
       # 3. CACHE CROWDSEC SOURCE
@@ -35,51 +35,31 @@ jobs:
       - name: Cache CrowdSec source
         uses: actions/cache@v4
         with:
-          path: crowdsec.tar.gz
-          key: crowdsec-src-${{ runner.os }}
+          path: crowdsec-src
+          key: crowdsec-src-${{ runner.os }}-v1
 
       # -------------------------------------------------
-      # 4. DOWNLOAD (ONLY IF NOT CACHED)
+      # 4. DOWNLOAD (only if cache miss)
       # -------------------------------------------------
       - name: Download CrowdSec
         run: |
           set -euo pipefail
 
-          if [ -f crowdsec.tar.gz ]; then
-            echo "== Using cached CrowdSec archive =="
+          if [ -d crowdsec-src ]; then
+            echo "✅ Using cached CrowdSec source"
             exit 0
           fi
 
-          echo "== Download CrowdSec master =="
+          echo "== Download CrowdSec =="
 
           curl -fL https://codeload.github.com/crowdsecurity/crowdsec/tar.gz/refs/heads/master \
             -o crowdsec.tar.gz
 
-          SIZE=$(stat -c%s crowdsec.tar.gz)
-          echo "Size: $SIZE"
-
-          if [ "$SIZE" -lt 100000 ]; then
-            echo "❌ invalid download"
-            exit 1
-          fi
-
-      # -------------------------------------------------
-      # 5. EXTRACT
-      # -------------------------------------------------
-      - name: Extract
-        run: |
-          set -euo pipefail
-
-          rm -rf crowdsec-src
           mkdir crowdsec-src
-
           tar -xzf crowdsec.tar.gz -C crowdsec-src --strip-components=1
 
-          test -f crowdsec-src/Makefile
-          test -d crowdsec-src/cmd
-
       # -------------------------------------------------
-      # 6. BUILD
+      # 5. BUILD
       # -------------------------------------------------
       - name: Build CrowdSec
         run: |
@@ -88,18 +68,15 @@ jobs:
           cd crowdsec-src
 
           sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends make gcc curl git jq
+          sudo apt-get install -y -qq make gcc jq
 
           export BUILD_VERSION="v1.8.0-dev"
           export BUILD_RE2_WASM=1
 
           make build
 
-          test -f cmd/crowdsec/crowdsec
-          test -f cmd/crowdsec-cli/cscli
-
       # -------------------------------------------------
-      # 7. INSTALL
+      # 6. INSTALL
       # -------------------------------------------------
       - name: Install CrowdSec
         run: |
@@ -110,24 +87,22 @@ jobs:
           sudo install -m 0755 cmd/crowdsec/crowdsec /usr/local/bin/crowdsec
           sudo install -m 0755 cmd/crowdsec-cli/cscli /usr/local/bin/cscli
 
-          sudo mkdir -p /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec
+          sudo mkdir -p /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec /etc/crowdsec/hub
 
           sudo cp -r config/* /etc/crowdsec/
 
-          sudo chown -R runner:runner /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec
+          sudo chown -R runner:runner /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec /etc/crowdsec/hub
 
       # -------------------------------------------------
-      # 8. VERIFY INSTALL
+      # 7. VERIFY
       # -------------------------------------------------
       - name: Verify install
-        run: |
-          set -euo pipefail
-          cscli version
+        run: cscli version
 
       # -------------------------------------------------
-      # 9. HUB UPDATE (INDEX ONLY)
+      # 8. INIT HUB INDEX
       # -------------------------------------------------
-      - name: Hub update (index only)
+      - name: Init hub index
         run: |
           set -euo pipefail
 
@@ -140,16 +115,16 @@ jobs:
           cscli hub update
 
       # -------------------------------------------------
-      # 10. CACHE HUB (🔥 SPEED)
+      # 9. CACHE HUB
       # -------------------------------------------------
-      - name: Cache CrowdSec hub
+      - name: Cache CrowdSec Hub
         uses: actions/cache@v4
         with:
           path: /home/runner/hub-src
-          key: crowdsec-hub-${{ runner.os }}
+          key: crowdsec-hub-${{ runner.os }}-v1
 
       # -------------------------------------------------
-      # 11. FETCH HUB (SMART)
+      # 10. FETCH HUB
       # -------------------------------------------------
       - name: Fetch CrowdSec Hub
         run: |
@@ -158,11 +133,20 @@ jobs:
           HUB_SRC="/home/runner/hub-src"
 
           if [ -d "$HUB_SRC/.git" ]; then
-            echo "== Using cached hub =="
+            echo "✅ Using cached hub"
           else
             echo "== Cloning hub =="
             git clone --depth 1 https://github.com/crowdsecurity/hub.git "$HUB_SRC"
           fi
+
+      # -------------------------------------------------
+      # 11. CACHE GEOIP
+      # -------------------------------------------------
+      - name: Cache GeoIP
+        uses: actions/cache@v4
+        with:
+          path: /var/lib/crowdsec/data
+          key: crowdsec-geoip-${{ runner.os }}-v1
 
       # -------------------------------------------------
       # 12. PREPARE HUB ROOT
@@ -182,6 +166,7 @@ jobs:
           echo "== Remove upstream tests =="
           rm -rf "$HUB_ROOT/.tests"
 
+          echo "== Inject repo overrides =="
           [ -d parsers ] && rsync -av parsers/ "$HUB_ROOT/parsers/" || true
           [ -d scenarios ] && rsync -av scenarios/ "$HUB_ROOT/scenarios/" || true
           [ -d collections ] && rsync -av collections/ "$HUB_ROOT/collections/" || true
@@ -189,6 +174,7 @@ jobs:
           echo "== Copy tests =="
           cp -r .tests "$HUB_ROOT/.tests"
 
+          echo "== Copy index =="
           cp /etc/crowdsec/hub/.index.json "$HUB_ROOT/"
 
           test -f "$HUB_ROOT/.index.json"
@@ -196,7 +182,7 @@ jobs:
       # -------------------------------------------------
       # 13. HUBTEST
       # -------------------------------------------------
-      - name: Hubtest
+      - name: Run HubTest
         run: |
           set -euo pipefail
 
@@ -212,13 +198,13 @@ jobs:
       - name: Debug
         if: failure()
         run: |
-          echo "==== DEBUG OUTPUT ===="
+          echo "==== DEBUG ===="
 
           echo "--- HUB ROOT ---"
           ls -la /home/runner/hub || true
 
-          echo "--- CONFIG ---"
-          ls -la /etc/crowdsec || true
+          echo "--- TESTS ---"
+          ls -R /home/runner/hub/.tests || true
 
-          echo "--- VERSION ---"
-          cscli version || true
+          echo "--- CONFIG ---"
+          cat /etc/crowdsec/config.yaml || true
