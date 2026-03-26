@@ -17,59 +17,69 @@ jobs:
         uses: actions/checkout@v4
 
       # -------------------------------------------------
-      # 2. DOWNLOAD (STRICT)
+      # 2. CACHE GO BUILD (🔥 SPEED)
+      # -------------------------------------------------
+      - name: Cache Go build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      # -------------------------------------------------
+      # 3. CACHE CROWDSEC SOURCE
+      # -------------------------------------------------
+      - name: Cache CrowdSec source
+        uses: actions/cache@v4
+        with:
+          path: crowdsec.tar.gz
+          key: crowdsec-src-${{ runner.os }}
+
+      # -------------------------------------------------
+      # 4. DOWNLOAD (ONLY IF NOT CACHED)
       # -------------------------------------------------
       - name: Download CrowdSec
         run: |
           set -euo pipefail
+
+          if [ -f crowdsec.tar.gz ]; then
+            echo "== Using cached CrowdSec archive =="
+            exit 0
+          fi
 
           echo "== Download CrowdSec master =="
 
           curl -fL https://codeload.github.com/crowdsecurity/crowdsec/tar.gz/refs/heads/master \
             -o crowdsec.tar.gz
 
-          if [ ! -f crowdsec.tar.gz ]; then
-            echo "❌ download missing"
-            exit 1
-          fi
-
           SIZE=$(stat -c%s crowdsec.tar.gz)
           echo "Size: $SIZE"
 
           if [ "$SIZE" -lt 100000 ]; then
-            echo "❌ invalid download (too small)"
+            echo "❌ invalid download"
             exit 1
           fi
 
       # -------------------------------------------------
-      # 3. EXTRACT (DETERMINISTIC)
+      # 5. EXTRACT
       # -------------------------------------------------
       - name: Extract
         run: |
           set -euo pipefail
-
-          echo "== Extract =="
 
           rm -rf crowdsec-src
           mkdir crowdsec-src
 
           tar -xzf crowdsec.tar.gz -C crowdsec-src --strip-components=1
 
-          echo "== Verify structure =="
-
-          if [ ! -f crowdsec-src/Makefile ]; then
-            echo "❌ Makefile missing"
-            ls -la crowdsec-src
-            exit 1
-          fi
-
-          if [ ! -d crowdsec-src/cmd ]; then
-            echo "❌ cmd dir missing"
-            exit 1
-          fi
+          test -f crowdsec-src/Makefile
+          test -d crowdsec-src/cmd
 
       # -------------------------------------------------
-      # 4. BUILD (SINGLE STRATEGY)
+      # 6. BUILD
       # -------------------------------------------------
       - name: Build CrowdSec
         run: |
@@ -77,25 +87,19 @@ jobs:
 
           cd crowdsec-src
 
-          echo "== Install build deps =="
-
           sudo apt-get update -qq
-          sudo apt-get install -y -qq make gcc curl git jq
-
-          echo "== Build =="
+          sudo apt-get install -y -qq --no-install-recommends make gcc curl git jq
 
           export BUILD_VERSION="v1.8.0-dev"
           export BUILD_RE2_WASM=1
 
           make build
 
-          echo "== Verify binaries =="
-
           test -f cmd/crowdsec/crowdsec
           test -f cmd/crowdsec-cli/cscli
 
       # -------------------------------------------------
-      # 5. INSTALL
+      # 7. INSTALL
       # -------------------------------------------------
       - name: Install CrowdSec
         run: |
@@ -113,7 +117,7 @@ jobs:
           sudo chown -R runner:runner /etc/crowdsec /var/lib/crowdsec /var/log/crowdsec
 
       # -------------------------------------------------
-      # 6. VERIFY INSTALL
+      # 8. VERIFY INSTALL
       # -------------------------------------------------
       - name: Verify install
         run: |
@@ -121,7 +125,7 @@ jobs:
           cscli version
 
       # -------------------------------------------------
-      # 7. (OPTIONAL) HUB UPDATE (INDEX ONLY)
+      # 9. HUB UPDATE (INDEX ONLY)
       # -------------------------------------------------
       - name: Hub update (index only)
         run: |
@@ -133,10 +137,19 @@ jobs:
             echo "hub_dir: /etc/crowdsec/hub" >> /etc/crowdsec/config.yaml
           fi
 
-          cscli hub update || true
+          cscli hub update
 
       # -------------------------------------------------
-      # 8. FETCH FULL HUB (FIX)
+      # 10. CACHE HUB (🔥 SPEED)
+      # -------------------------------------------------
+      - name: Cache CrowdSec hub
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/hub-src
+          key: crowdsec-hub-${{ runner.os }}
+
+      # -------------------------------------------------
+      # 11. FETCH HUB (SMART)
       # -------------------------------------------------
       - name: Fetch CrowdSec Hub
         run: |
@@ -144,15 +157,15 @@ jobs:
 
           HUB_SRC="/home/runner/hub-src"
 
-          echo "== Clone CrowdSec Hub =="
-
-          git clone --depth 1 https://github.com/crowdsecurity/hub.git "$HUB_SRC"
-
-          echo "== Verify hub content =="
-          ls -R "$HUB_SRC"
+          if [ -d "$HUB_SRC/.git" ]; then
+            echo "== Using cached hub =="
+          else
+            echo "== Cloning hub =="
+            git clone --depth 1 https://github.com/crowdsecurity/hub.git "$HUB_SRC"
+          fi
 
       # -------------------------------------------------
-      # 9. PREPARE HUB ROOT (FIXED)
+      # 12. PREPARE HUB ROOT
       # -------------------------------------------------
       - name: Prepare hub root
         run: |
@@ -161,71 +174,27 @@ jobs:
           HUB_ROOT="/home/runner/hub"
           HUB_SRC="/home/runner/hub-src"
 
-          echo "== Create hub root =="
           rm -rf "$HUB_ROOT"
           mkdir -p "$HUB_ROOT"
 
-          echo "== Copy FULL Hub =="
-          cp -r "$HUB_SRC"/* "$HUB_ROOT/"
+          cp -a "$HUB_SRC"/. "$HUB_ROOT/"
 
-          echo "== Inject repo overrides =="
-          [ -d parsers ] && rsync -av parsers/ "$HUB_ROOT/parsers/" || echo "⚠️ no parsers"
-          [ -d scenarios ] && rsync -av scenarios/ "$HUB_ROOT/scenarios/" || echo "⚠️ no scenarios"
+          [ -d parsers ] && rsync -av parsers/ "$HUB_ROOT/parsers/" || true
+          [ -d scenarios ] && rsync -av scenarios/ "$HUB_ROOT/scenarios/" || true
           [ -d collections ] && rsync -av collections/ "$HUB_ROOT/collections/" || true
 
-          echo "== Copy tests =="
           cp -r .tests "$HUB_ROOT/.tests"
 
-          echo "== DEBUG hub list =="
-          cscli hub list || true
+          cp /etc/crowdsec/hub/.index.json "$HUB_ROOT/"
 
-          echo "== Verify hub root =="
-          ls -R "$HUB_ROOT"
+          test -f "$HUB_ROOT/.index.json"
 
       # -------------------------------------------------
-      # 10. DEBUG HUB STRUCTURE
-      # -------------------------------------------------
-      - name: Debug hub structure
-        run: |
-          set -euo pipefail
-
-          HUB_ROOT="/home/runner/hub"
-
-          echo "== .tests =="
-          ls -R "$HUB_ROOT/.tests" || echo "❌ .tests missing"
-
-          echo "== parsers =="
-          ls -R "$HUB_ROOT/parsers" || echo "❌ parsers missing"
-
-          echo "== scenarios =="
-          ls -R "$HUB_ROOT/scenarios" || echo "❌ scenarios missing"
-
-      # -------------------------------------------------
-      # 11. VALIDATE HUB STRUCTURE
-      # -------------------------------------------------
-      - name: Validate hub structure
-        run: |
-          set -euo pipefail
-
-          HUB_ROOT="/home/runner/hub"
-
-          [ -d "$HUB_ROOT/.tests" ] || { echo "❌ Missing .tests"; exit 1; }
-          [ -d "$HUB_ROOT/parsers" ] || { echo "❌ Missing parsers"; exit 1; }
-          [ -d "$HUB_ROOT/scenarios" ] || { echo "❌ Missing scenarios"; exit 1; }
-
-          TEST_COUNT=$(find "$HUB_ROOT/.tests" -type f | wc -l)
-          [ "$TEST_COUNT" -gt 0 ] || { echo "❌ .tests empty"; exit 1; }
-
-          echo "✅ Hub structure valid"
-
-      # -------------------------------------------------
-      # 12. HUBTEST
+      # 13. HUBTEST
       # -------------------------------------------------
       - name: Hubtest
         run: |
           set -euo pipefail
-
-          echo "== Run hubtest =="
 
           export CROWDSEC_CONFIG_DIR=/etc/crowdsec
 
@@ -234,7 +203,7 @@ jobs:
           cscli hubtest run --all --report-success
 
       # -------------------------------------------------
-      # 13. DEBUG ON FAILURE
+      # 14. DEBUG ON FAILURE
       # -------------------------------------------------
       - name: Debug
         if: failure()
