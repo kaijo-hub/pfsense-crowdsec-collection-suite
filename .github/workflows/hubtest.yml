@@ -179,10 +179,14 @@ jobs:
 
           cp -a "$HUB_SRC"/. "$HUB_ROOT/"
 
+          echo "== Remove upstream tests =="
+          rm -rf "$HUB_ROOT/.tests"
+
           [ -d parsers ] && rsync -av parsers/ "$HUB_ROOT/parsers/" || true
           [ -d scenarios ] && rsync -av scenarios/ "$HUB_ROOT/scenarios/" || true
           [ -d collections ] && rsync -av collections/ "$HUB_ROOT/collections/" || true
 
+          echo "== Copy tests =="
           cp -r .tests "$HUB_ROOT/.tests"
 
           cp /etc/crowdsec/hub/.index.json "$HUB_ROOT/"
