@@ -22,6 +22,27 @@ The suite has been validated through an extensive multi-stage hubtest process co
 
 ---
 
+## Continuous Integration (CrowdSec HubTest)
+
+This collection is validated using a full CrowdSec HubTest pipeline executed on every push and pull request.
+
+The CI performs:
+
+- Full CrowdSec master build (Go, RE2-WASM)
+- Complete runtime installation (no portable mode)
+- Hub index generation
+- Full upstream Hub clone
+- Injection of this collection’s parsers, scenarios, and tests
+- Execution of all HubTest suites (RFC3164, RFC5424, Mixed)
+- GeoIP enrichment validation
+- Thousands of assertions across 27 SSH test scenarios
+
+The current CI status:
+
+[![HubTest CI](https://github.com/kaijo-hub/pfsense-crowdsec-collection-suite/actions/workflows/hubtest.yml/badge.svg)](https://github.com/kaijo-hub/pfsense-crowdsec-collection-suite/actions/workflows/hubtest.yml)
+
+---
+
 ## Installation
 
 ### Part 1 – Installing CrowdSec on pfSense
