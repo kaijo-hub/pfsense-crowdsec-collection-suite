@@ -1,6 +1,7 @@
 name: CrowdSec HubTest (Optimized CI)
 
 on:
+  workflow_dispatch:
   push:
   pull_request:
 
