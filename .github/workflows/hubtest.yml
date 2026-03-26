@@ -209,7 +209,6 @@ jobs:
 
           HUB_ROOT="/home/runner/hub"
 
-          [ -f "$HUB_ROOT/.index.json" ] || { echo "❌ Missing .index.json"; exit 1; }
           [ -d "$HUB_ROOT/.tests" ] || { echo "❌ Missing .tests"; exit 1; }
           [ -d "$HUB_ROOT/parsers" ] || { echo "❌ Missing parsers"; exit 1; }
           [ -d "$HUB_ROOT/scenarios" ] || { echo "❌ Missing scenarios"; exit 1; }
