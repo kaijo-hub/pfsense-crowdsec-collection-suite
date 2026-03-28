@@ -1,14 +1,15 @@
 name: kaijo/sshd-logs-rfc5424
 description: "Parse pfSense/FreeBSD sshd and sshd-session logs in RFC5424 format (complete pfSense 24.x/25.x coverage)"
 
-# Syslog-RFC5424 parser hat den Header bereits entfernt.
-# Wir filtern nur auf das Programm.
-filter: "evt.Parsed.program in ['sshd', 'sshd-session']"
+#filter: "evt.Parsed.program matches '^sshd'"
+filter: >
+  (evt.Parsed.program in ['sshd', 'sshd-session'] || evt.Parsed.program == 'file')
+  && evt.Parsed.syslog_version == '1'
 stage: s01-parse
 onsuccess: next_stage
 
 # -------------------------------------------------------------------
-#  PATTERN DEFINITIONS (identisch zu RFC3164)
+#  PATTERN DEFINITIONS
 # -------------------------------------------------------------------
 pattern_syntax:
 
@@ -16,8 +17,42 @@ pattern_syntax:
   IPv4_WORKAROUND: (?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)
   IP_WORKAROUND: (?:%{IPV6}|%{IPv4_WORKAROUND})
 
+  # -----------------------------------------------------------------
+  # AUTHENTICATION EVENTS
+  # -----------------------------------------------------------------
+
+  # Failed authentication (pfSense / FreeBSD keyboard-interactive, password, PAM)
+  PF_FAILED_AUTH: 'Failed %{DATA:auth_method}(?:/%{DATA:auth_module})? for %{USERNAME:user} from %{IP_WORKAROUND:src_ip} port %{NUMBER:src_port}(?: ssh2)?'
+
+  # Maximum authentication attempts reached (strong brute-force indicator)
+  # Seen when sshd actively aborts connection after too many failed logins
+  PF_MAX_AUTH: 'error: maximum authentication attempts exceeded for %{USERNAME:user} from %{IP_WORKAROUND:src_ip} port %{NUMBER:src_port}'
+
   # Successful authentication
   PF_ACCEPTED: 'Accepted %{DATA:auth_method}(?:/%{DATA:auth_module})? for %{USERNAME:user} from %{IP_WORKAROUND:src_ip} port %{NUMBER:src_port}(?: ssh2)?'
+
+  # PAM authentication error (very common on pfSense)
+  PF_PAM_AUTH_ERROR: 'error: PAM: Authentication error for %{USERNAME:user} from %{IP_WORKAROUND:src_ip}'
+
+  # Illegal user (PAM error variant)
+  PF_ILLEGAL_USER: 'error: PAM: Authentication error for illegal user %{DATA:user} from %{IP_WORKAROUND:src_ip}'
+
+  # -----------------------------------------------------------------
+  # USER ENUMERATION / PREAUTH
+  # -----------------------------------------------------------------
+
+  # Invalid user (preauth detailed)
+  PF_INVALID_USER: 'Postponed keyboard-interactive for invalid user %{USERNAME:user} from %{IP_WORKAROUND:src_ip} port %{NUMBER:src_port} ssh2 \[preauth\]'
+
+  # Postponed authentication (valid user, preauth phase)
+  PF_POSTPONED_AUTH: 'Postponed %{DATA:auth_method}(?:/%{DATA:auth_module})? for %{USERNAME:user} from %{IP_WORKAROUND:src_ip} port %{NUMBER:src_port}(?: ssh2)? \[preauth\]'
+
+  # Invalid user (simple pfSense form)
+  PF_INVALID_USER_SIMPLE: 'Invalid user %{USERNAME:user} from %{IP_WORKAROUND:src_ip} port %{NUMBER:src_port}'
+
+  # -----------------------------------------------------------------
+  # CONNECTION / SESSION EVENTS
+  # -----------------------------------------------------------------
 
   # Normal connection closed
   PF_CONNECTION_CLOSED: 'Connection closed by %{IP_WORKAROUND:src_ip} port %{NUMBER:src_port}'
@@ -25,30 +60,21 @@ pattern_syntax:
   # Disconnect with reason
   PF_DISCONNECT: 'Received disconnect from %{IP_WORKAROUND:src_ip} port %{NUMBER:src_port}:%{NUMBER:reason_code}: %{GREEDYDATA:reason}'
 
-  # Permission denied
+  # Disconnect from authenticated user
+  PF_DISCONNECTED_USER: 'Disconnected from authenticating user %{USERNAME:user} %{IP_WORKAROUND:src_ip} port %{NUMBER:src_port}'
+
+  # Disconnect during authentication (includes reason → wichtig!)
+  PF_DISCONNECTING_USER: 'Disconnecting authenticating user %{USERNAME:user} %{IP_WORKAROUND:src_ip} port %{NUMBER:src_port}: %{GREEDYDATA:reason}'
+
+  # Permission denied (FreeBSD/pfSense specific wording)
   PF_PERMISSION_DENIED: 'process_output: ssh_packet_write_poll: Connection from user %{USERNAME:user} %{IP_WORKAROUND:src_ip} port %{NUMBER:src_port}: Permission denied'
 
   # Timeout before authentication
   PF_TIMEOUT_AUTH: 'Timeout before authentication for connection from %{IP_WORKAROUND:src_ip} to %{IP_WORKAROUND:dst_ip}, pid = %{NUMBER:pid}'
-  
-  # Invalid user (preauth)
-  PF_INVALID_USER: 'Postponed keyboard-interactive for invalid user %{USERNAME:user} from %{IP_WORKAROUND:src_ip} port %{NUMBER:src_port} ssh2 \[preauth\]'
-
-  # Invalid user (simple pfSense form)
-  PF_INVALID_USER_SIMPLE: 'Invalid user %{USERNAME:user} from %{IP_WORKAROUND:src_ip} port %{NUMBER:src_port}'
-
-  # Illegal user (PAM error)
-  PF_ILLEGAL_USER: 'error: PAM: Authentication error for illegal user %{DATA:user} from %{IP_WORKAROUND:src_ip}'
-
-  # PAM authentication error
-  PF_PAM_AUTH_ERROR: 'error: PAM: Authentication error for %{USERNAME:user} from %{IP_WORKAROUND:src_ip}'
-
-  # Disconnect from authenticating user
-  PF_DISCONNECTED_USER: 'Disconnected from authenticating user %{USERNAME:user} %{IP_WORKAROUND:src_ip} port %{NUMBER:src_port}'
 
 
 # -------------------------------------------------------------------
-#  NODE DEFINITIONS (identisch zu RFC3164, aber apply_on: message)
+#  NODE DEFINITIONS
 # -------------------------------------------------------------------
 nodes:
 
@@ -59,6 +85,87 @@ nodes:
         - meta: log_type
           value: ssh_success
         - meta: target_user
+          expression: "evt.Parsed.user"
+        - meta: source_ip
+          expression: "evt.Parsed.src_ip"
+
+  - grok:
+      name: "PF_FAILED_AUTH"
+      apply_on: message
+      statics:
+        - meta: log_type
+          value: ssh_failed_auth
+        - meta: target_user
+          expression: "evt.Parsed.user"
+        - meta: source_ip
+          expression: "evt.Parsed.src_ip"
+
+  - grok:
+      name: "PF_MAX_AUTH"
+      apply_on: message
+      statics:
+        - meta: log_type
+          value: ssh_bruteforce
+        - meta: source_ip
+          expression: "evt.Parsed.src_ip"
+
+  - grok:
+      name: "PF_PAM_AUTH_ERROR"
+      apply_on: message
+      statics:
+        - meta: log_type
+          value: ssh_pam_auth_error
+        - meta: target_user
+          expression: "evt.Parsed.user"
+        - meta: source_ip
+          expression: "evt.Parsed.src_ip"
+
+  - grok:
+      name: "PF_ILLEGAL_USER"
+      apply_on: message
+      statics:
+        - meta: log_type
+          value: ssh_invalid_user
+        - meta: target_user
+          expression: "evt.Parsed.user"
+        - meta: user
+          expression: "evt.Parsed.user"
+        - meta: source_ip
+          expression: "evt.Parsed.src_ip"
+
+  - grok:
+      name: "PF_INVALID_USER"
+      apply_on: message
+      statics:
+        - meta: log_type
+          value: ssh_invalid_user
+        - meta: target_user
+          expression: "evt.Parsed.user"
+        - meta: user
+          expression: "evt.Parsed.user"
+        - meta: source_ip
+          expression: "evt.Parsed.src_ip"
+
+  - grok:
+      name: "PF_POSTPONED_AUTH"
+      apply_on: message
+      statics:
+        - meta: log_type
+          value: ssh_pre_auth
+        - meta: target_user
+          expression: "evt.Parsed.user"
+        - meta: source_ip
+          expression: "evt.Parsed.src_ip"
+
+  - grok:
+      name: "PF_INVALID_USER_SIMPLE"
+      apply_on: message
+      statics:
+        - meta: log_type
+          value: ssh_invalid_user
+        - meta: target_user
+          expression: "evt.Parsed.user"
+        - meta: user
           expression: "evt.Parsed.user"
         - meta: source_ip
           expression: "evt.Parsed.src_ip"
@@ -78,6 +185,28 @@ nodes:
       statics:
         - meta: log_type
           value: ssh_disconnect
+        - meta: source_ip
+          expression: "evt.Parsed.src_ip"
+
+  - grok:
+      name: "PF_DISCONNECTED_USER"
+      apply_on: message
+      statics:
+        - meta: log_type
+          value: ssh_disconnect
+        - meta: target_user
+          expression: "evt.Parsed.user"
+        - meta: source_ip
+          expression: "evt.Parsed.src_ip"
+
+  - grok:
+      name: "PF_DISCONNECTING_USER"
+      apply_on: message
+      statics:
+        - meta: log_type
+          value: ssh_disconnect
+        - meta: target_user
+          expression: "evt.Parsed.user"
         - meta: source_ip
           expression: "evt.Parsed.src_ip"
 
@@ -102,69 +231,6 @@ nodes:
           expression: "evt.Parsed.src_ip"
         - meta: destination_ip
           expression: "evt.Parsed.dst_ip"
-
-  - grok:
-      name: "PF_INVALID_USER"
-      apply_on: message
-      statics:
-        - meta: log_type
-          value: ssh_invalid_user
-        - meta: target_user
-          expression: "evt.Parsed.user"
-        - meta: user
-          expression: "evt.Parsed.user"
-        - meta: source_ip
-          expression: "evt.Parsed.src_ip"
-
-  - grok:
-      name: "PF_INVALID_USER_SIMPLE"
-      apply_on: message
-      statics:
-        - meta: log_type
-          value: ssh_invalid_user
-        - meta: target_user
-          expression: "evt.Parsed.user"
-        - meta: user
-          expression: "evt.Parsed.user"
-        - meta: source_ip
-          expression: "evt.Parsed.src_ip"
-
-  - grok:
-      name: "PF_ILLEGAL_USER"
-      apply_on: message
-      statics:
-        - meta: log_type
-          value: ssh_invalid_user
-        - meta: target_user
-          expression: "evt.Parsed.user"
-        - meta: user
-          expression: "evt.Parsed.user"
-        - meta: source_ip
-          expression: "evt.Parsed.src_ip"
-
-  - grok:
-      name: "PF_PAM_AUTH_ERROR"
-      apply_on: message
-      statics:
-        - meta: log_type
-          value: ssh_pam_auth_error
-        - meta: target_user
-          expression: "evt.Parsed.user"
-        - meta: source_ip
-          expression: "evt.Parsed.src_ip"
-
-  - grok:
-      name: "PF_DISCONNECTED_USER"
-      apply_on: message
-      statics:
-        - meta: log_type
-          value: ssh_disconnect
-        - meta: target_user
-          expression: "evt.Parsed.user"
-        - meta: source_ip
-          expression: "evt.Parsed.src_ip"
-        - meta: service
-          value: ssh
 
 
 # -------------------------------------------------------------------

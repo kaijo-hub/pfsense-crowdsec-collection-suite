@@ -7,7 +7,7 @@ filter: |
   && evt.Meta.log_type == "ssh_timeout_before_auth"
   && evt.Meta.source_ip != ""
   && evt.Meta.destination_ip != ""
-  
+
 groupby: evt.Meta.source_ip
 capacity: 8
 leakspeed: 30s

@@ -5,12 +5,11 @@ description: "Detect successful SSH login after multiple failed attempts on pfSe
 filter: |
   evt.Meta.service == "ssh"
   && evt.Meta.log_type in [
-    "ssh_pam_auth_error",
-    "ssh_permission_denied",
-    "ssh_auth_fail",
     "ssh_failed_auth",
+    "ssh_pam_auth_error",
     "ssh_invalid_user",
-    "ssh_illegal_user",
+    "ssh_pre_auth",
+    "ssh_permission_denied",
     "ssh_timeout_before_auth",
     "ssh_success"
   ]
@@ -32,4 +31,3 @@ labels:
     - attack.T1110
   behavior: "ssh:success-after-bruteforce"
   label: "SSH Success After Bruteforce (pfSense)"
-

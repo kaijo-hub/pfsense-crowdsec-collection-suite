@@ -4,7 +4,7 @@ description: "Detect repeated invalid SSH usernames on pfSense"
 
 filter: |
   evt.Meta.service == "ssh"
-  && evt.Meta.log_type == "ssh_invalid_user"
+  && evt.Meta.log_type in ["ssh_invalid_user", "ssh_pre_auth"]
 
 groupby: evt.Meta.source_ip
 distinct: evt.Meta.target_user

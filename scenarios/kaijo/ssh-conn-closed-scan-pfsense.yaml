@@ -1,9 +1,10 @@
 type: leaky
 name: kaijo/ssh-conn-closed-scan-pfsense
 description: "Detect SSH closed-connection scanning on pfSense"
+
 filter: |
   evt.Meta.service == "ssh"
-  && evt.Meta.log_type == "ssh_closed"
+  && evt.Meta.log_type in ["ssh_closed", "ssh_disconnect"]
 
 groupby: evt.Meta.source_ip
 distinct: evt.Parsed.src_port
@@ -21,4 +22,3 @@ labels:
     - attack.T1595
   behavior: "ssh:scan"
   label: "SSH Closed-Connection Scan (pfSense)"
-

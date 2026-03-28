@@ -4,7 +4,7 @@ description: "Detect SSH connection floods on pfSense"
 
 filter: |
   evt.Meta.service == "ssh"
-  && evt.Meta.log_type == "ssh_closed"
+  && evt.Meta.log_type in ["ssh_closed", "ssh_disconnect"]
 
 groupby: evt.Meta.source_ip
 distinct: evt.Parsed.src_port
