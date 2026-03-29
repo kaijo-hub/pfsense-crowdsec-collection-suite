@@ -1,11 +1,20 @@
-<134>1 2026-03-05T12:07:17.000000+01:00 routeme sshd-session 29363 - - error: PAM: Authentication error for admin from 2a02:8071:5d00:2661:c820:8c00:3366:3a57
-<134>1 2026-03-05T12:07:24.000000+01:00 routeme sshd-session 29363 - - Accepted keyboard-interactive/pam for admin from 2a02:8071:5d00:2661:c820:8c00:3366:3a57 port 61266 ssh2
-<134>1 2026-03-05T12:08:26.000000+01:00 routeme sshd-session 30426 - - Connection closed by 2a02:8071:5d00:2661:c820:8c00:3366:3a57 port 61266
-<134>1 2026-03-05T12:09:00.000000+01:00 routeme sshd-session 31969 - - process_output: ssh_packet_write_poll: Connection from user admin 2a02:8071:5d00:2661:c820:8c00:3366:3a57 port 61257: Permission denied
-<134>1 2026-03-05T12:09:19.000000+01:00 routeme sshd-session 28985 - - Accepted keyboard-interactive/pam for admin from 192.168.11.19 port 61292 ssh2
-<134>1 2026-03-09T08:54:36.000000+01:00 routeme sshd-session 28078 - - Invalid user test from 192.168.11.16 port 57979
-<134>1 2026-03-09T08:54:36.000000+01:00 routeme sshd-session 28078 - - Postponed keyboard-interactive for invalid user test from 192.168.11.16 port 57979 ssh2 [preauth]
-<134>1 2026-03-09T09:00:54.000000+01:00 routeme sshd 68649 - - Timeout before authentication for connection from 192.168.11.16 to 192.168.11.10, pid = 99085
-<134>1 2026-03-09T09:03:14.000000+01:00 routeme sshd-session 85889 - - error: Received disconnect from 192.168.11.16 port 64422:13: Unable to authenticate [preauth]
-<134>1 2026-03-09T09:03:14.000000+01:00 routeme sshd-session 85889 - - Disconnected from authenticating user kajo 192.168.11.16 port 64422 [preauth]
-<134>1 2026-03-09T09:03:36.000000+01:00 routeme sshd-session 65949 - - process_output: ssh_packet_write_poll: Connection from user admin 192.168.11.16 port 55070: Permission denied
+<38>1 2026-03-10T10:00:01+01:00 fw.local sshd 1001 - - Failed password for admin from 1.2.3.4 port 50001 ssh2
+<38>1 2026-03-10T10:00:03+01:00 fw.local sshd 1002 - - error: PAM: Authentication error for admin from 1.2.3.4
+<38>1 2026-03-10T10:00:05+01:00 fw.local sshd 1003 - - error: maximum authentication attempts exceeded for admin from 1.2.3.4 port 50002
+<38>1 2026-03-10T10:00:07+01:00 fw.local sshd 1004 - - Accepted keyboard-interactive/pam for admin from 1.2.3.4 port 50003 ssh2
+
+<38>1 2026-03-10T10:01:01+01:00 fw.local sshd 2001 - - Invalid user guest from 5.6.7.8 port 50101
+<38>1 2026-03-10T10:01:02+01:00 fw.local sshd 2002 - - Postponed keyboard-interactive for invalid user guest from 5.6.7.8 port 50101 ssh2 [preauth]
+
+<38>1 2026-03-10T10:02:01+01:00 fw.local sshd 3001 - - Timeout before authentication for connection from 9.10.11.12 to 192.168.0.1, pid = 12345
+
+<38>1 2026-03-10T10:03:01+01:00 fw.local sshd 4001 - - process_output: ssh_packet_write_poll: Connection from user root 13.14.15.16 port 50201: Permission denied
+
+<38>1 2026-03-10T10:04:01+01:00 fw.local sshd 5001 - - Connection closed by 17.18.19.20 port 50301
+
+<38>1 2026-03-10T10:05:01+01:00 fw.local sshd 6001 - - Received disconnect from 21.22.23.24 port 50401:11: Bye Bye
+<38>1 2026-03-10T10:05:02+01:00 fw.local sshd 6002 - - Disconnected from authenticating user test 21.22.23.24 port 50401
+
+<38>1 2026-03-10T10:06:01+01:00 fw.local sshd 7001 - - Disconnecting authenticating user admin 25.26.27.28 port 50501: Too many failures
+
+<38>1 2026-03-10T10:07:01+01:00 fw.local sshd 8001 - - error: PAM: Authentication error for illegal user hacker from 29.30.31.32

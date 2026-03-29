@@ -1,10 +1,8 @@
-Mar  7 18:09:01 routeme sshd-session[48636]: Accepted keyboard-interactive/pam for admin from 203.0.113.50 port 54233 ssh2
-Mar  7 18:09:02 routeme sshd-session[61764]: error: PAM: Authentication error for admin from 203.0.113.50
-Mar  7 18:09:03 routeme sshd-session[61764]: error: PAM: Authentication error for admin from 203.0.113.50
-Mar  7 18:09:04 routeme sshd[51700]: error: PAM: Authentication error for admin from 203.0.113.50
-Mar  7 18:09:05 routeme sshd[51700]: Connection closed by 203.0.113.50 port 54248
-<134>1 2026-03-07T18:09:06.000000+01:00 routeme sshd-session 48636 - - Accepted keyboard-interactive/pam for admin from 203.0.113.50 port 54260 ssh2
-<134>1 2026-03-07T18:09:07.000000+01:00 routeme sshd-session 61764 - - error: PAM: Authentication error for admin from 203.0.113.50
-<134>1 2026-03-07T18:09:08.000000+01:00 routeme sshd-session 61764 - - error: PAM: Authentication error for admin from 203.0.113.50
-<134>1 2026-03-07T18:09:09.000000+01:00 routeme sshd 51691 - - error: PAM: Authentication error for admin from 203.0.113.50
-<134>1 2026-03-07T18:09:10.000000+01:00 routeme sshd 51691 - - error: PAM: Authentication error for admin from 203.0.113.50
+Mar 29 10:00:01 fw sshd-session[1001]: Failed password for admin from 1.2.3.4 port 50001 ssh2
+Mar 29 10:00:02 fw sshd-session[1002]: error: PAM: Authentication error for admin from 1.2.3.4
+Mar 29 10:00:03 fw sshd-session[1003]: Failed password for admin from 1.2.3.4 port 50002 ssh2
+Mar 29 10:00:04 fw sshd[1004]: Postponed keyboard-interactive for invalid user guest from 1.2.3.4 port 50003 ssh2 [preauth]
+<34>1 2026-03-29T10:00:05.000000Z fw sshd-session 1005 - - Failed password for admin from 1.2.3.4 port 50004 ssh2
+<34>1 2026-03-29T10:00:06.000000Z fw sshd 1006 - - Timeout before authentication for connection from 1.2.3.4 to 192.168.0.1, pid=12345
+<34>1 2026-03-29T10:00:07.000000Z fw sshd-session 1007 - - Failed password for admin from 1.2.3.4 port 50005 ssh2
+<34>1 2026-03-29T10:00:08.000000Z fw sshd-session 1008 - - Failed password for admin from 1.2.3.4 port 50007 ssh2

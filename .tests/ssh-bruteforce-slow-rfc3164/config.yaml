@@ -8,7 +8,7 @@ scenarios:
     - scenarios/kaijo/ssh-bruteforce-slow-pfsense.yaml
 postoverflows:
     - ""
-log_file: ssh-bruteforce-slow.log
+log_file: ssh-bruteforce-slow-rfc3164.log
 log_type: syslog
 
 simulation:
