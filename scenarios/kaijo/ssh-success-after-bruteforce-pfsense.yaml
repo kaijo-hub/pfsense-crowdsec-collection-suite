@@ -1,6 +1,9 @@
 type: leaky
 name: kaijo/ssh-success-after-bruteforce-pfsense
-description: "Detect successful SSH login after multiple failed attempts on pfSense"
+description: >
+  Detect successful SSH login after multiple failed attempts on pfSense systems.
+  Tracks multiple failed auth attempts including MaxAuthExceeded and triggers
+  when a success occurs after repeated failures.
 
 filter: |
   evt.Meta.service == "ssh"
@@ -11,16 +14,20 @@ filter: |
     "ssh_pre_auth",
     "ssh_permission_denied",
     "ssh_timeout_before_auth",
+    "ssh_max_auth_exceeded",
     "ssh_success"
   ]
 
 groupby: evt.Meta.source_ip
-distinct: evt.Meta.target_user
 
-capacity: 5
-leakspeed: 10m
-blackhole: 1m
+capacity: 5        # trigger after 5 accumulated events
+leakspeed: 15m     # bucket drains slowly
+blackhole: 5m      # ignore repeated events after trigger
 reprocess: true
+
+condition: |
+  evt.Meta.log_type == "ssh_success"  
+# trigger for success after the failed attempts
 
 labels:
   service: ssh

@@ -21,6 +21,7 @@ scenarios:
   - kaijo/ssh-connection-flood-pfsense
   - kaijo/ssh-disconnect-abuse-pfsense
   - kaijo/ssh-invalid-user-scan-pfsense
+  - kaijo/ssh-max-auth-exceeded-pfsense
   - kaijo/ssh-success-after-bruteforce-pfsense
   - kaijo/ssh-timeout-before-auth-pfsense
 

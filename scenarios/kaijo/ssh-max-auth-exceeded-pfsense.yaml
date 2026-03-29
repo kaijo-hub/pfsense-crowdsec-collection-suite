@@ -1,0 +1,29 @@
+type: leaky
+name: kaijo/ssh-max-auth-exceeded-pfsense
+description: "Detect SSH connections aborted after maximum authentication attempts (strong bruteforce indicator) on pfSense"
+
+filter: |
+  evt.Meta.service == "ssh"
+  && evt.Meta.log_type == "ssh_bruteforce"
+
+groupby: evt.Meta.source_ip
+
+# respond immediatly (1 event is sufficient)
+capacity: 1
+leakspeed: 1m
+
+# a short block prevent spams
+blackhole: 5m
+
+# important for correlation with other scenarios
+reprocess: true
+
+labels:
+  service: ssh
+  remediation: true
+  confidence: 5
+  spoofable: 0
+  classification:
+    - attack.T1110
+  behavior: "ssh:bruteforce"
+  label: "SSH Max Auth Attempts Exceeded (pfSense)"
