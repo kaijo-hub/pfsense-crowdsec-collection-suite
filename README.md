@@ -74,7 +74,7 @@ This collection exists to provide:
 
 Installation:
 
-1. Download the latest pfSense CrowdSec package  
+1. Download the latest pfSense CrowdSec package: https://github.com/crowdsecurity/pfSense-pkg-crowdsec/releases 
 2. Install via pfSense package manager  
 3. Restart CrowdSec: 
    service crowdsec.sh restart
@@ -87,7 +87,7 @@ pfSense Plus is based on FreeBSD 16, which is **not yet officially supported** b
 
 Installation:
 
-1. Install using FreeBSD‑15 compatibility mode:
+1. Install using FreeBSD 15 compatibility mode:
    install-crowdsec.sh --freebsd 15
 
 2. Apply the temporary workaround:  
