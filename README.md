@@ -63,7 +63,7 @@ This collection exists to provide:
 
 ---
 
-## Installation
+## Crowdsec Installation
 
 ### pfSense CE 2.8.1 (FreeBSD 15)
 
