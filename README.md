@@ -100,15 +100,33 @@ Installation:
 
 ## Installing this CrowdSec Collection Suite
 
-From the CrowdSec Hub (recommended once published):
-cscli collections install kaijo/pfsense-crowdsec-collection-suite
+The following steps describe how to manually install the collection, parsers, and scenarios into the CrowdSec runtime directories on pfSense.
 
-From a local clone:
-git clone https://github.com/kaijo-hub/pfsense-crowdsec-collection-suite
-cscli collections install ./pfsense-crowdsec-collection-suite
+1. Install Git (required for cloning the repository)
 
-Restart CrowdSec afterwards:
-service crowdsec.sh restart
+- pkg update
+- pkg install git
+- git --version
+
+2. Clone the repository onto the pfSense system
+
+- cd /root
+- git clone https://github.com/kaijo-hub/pfsense-crowdsec-collection-suite.git
+
+3. Manually install the collection, parsers, and scenarios
+
+- mkdir -p /usr/local/etc/crowdsec/collections/kaijo
+- cp /root/pfsense-crowdsec-collection-suite/collections/kaijo/*.yaml* /usr/local/etc/crowdsec/collections/kaijo/
+- mkdir -p /usr/local/etc/crowdsec/parsers/s01-parse/kaijo
+- cp /root/pfsense-crowdsec-collection-suite/parsers/s01-parse/kaijo/*.yaml /usr/local/etc/crowdsec/parsers/s01-parse/kaijo/
+- mkdir -p /usr/local/etc/crowdsec/scenarios/kaijo
+- cp /root/pfsense-crowdsec-collection-suite/scenarios/kaijo/*.yaml /usr/local/etc/crowdsec/scenarios/kaijo/
+
+4. Verify installation (no restart required in pfSense)
+
+- cscli collections list | grep kaijo
+- cscli parsers list | grep kaijo
+- cscli scenarios list | grep kaijo
 
 ---
 
