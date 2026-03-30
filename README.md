@@ -75,9 +75,9 @@ This collection exists to provide:
 Installation:
 
 1. Download the latest pfSense CrowdSec package: https://github.com/crowdsecurity/pfSense-pkg-crowdsec/releases 
-2. Install via pfSense package manager  
+2. Install via install script: install-crowdsec.sh   
 3. Restart CrowdSec: 
-   service crowdsec.sh restart
+   service crowdsec.sh stop and service crowdsec.sh start
 
 ---
 
@@ -94,7 +94,7 @@ Installation:
    https://github.com/crowdsecurity/pfSense-pkg-crowdsec/issues/121
 
 3. Restart CrowdSec:
-   service crowdsec.sh restart
+   service crowdsec.sh stop and service crowdsec.sh start
 
 ---
 
