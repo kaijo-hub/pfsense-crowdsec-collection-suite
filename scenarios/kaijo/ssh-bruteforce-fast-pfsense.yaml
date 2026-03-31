@@ -1,6 +1,6 @@
 type: leaky
 name: kaijo/ssh-bruteforce-fast-pfsense
-description: "Detect fast SSH bruteforce attempts on pfSense"
+description: "Detect fast SSH bruteforce attempts on pfSense. Allows normal user mistakes (1–2 failed attempts) while still detecting fast brute-force patterns and noisy SSH activity."
 
 filter: |
   evt.Meta.service == "ssh"
