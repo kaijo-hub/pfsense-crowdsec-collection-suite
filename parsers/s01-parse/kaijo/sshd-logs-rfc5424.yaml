@@ -1,10 +1,10 @@
 name: kaijo/sshd-logs-rfc5424
 description: "Parse pfSense/FreeBSD sshd and sshd-session logs in RFC5424 format (complete pfSense 24.x/25.x coverage)"
-
-#filter: "evt.Parsed.program matches '^sshd'"
+#filter description: Parse pfSense/FreeBSD sshd logs (RFC5424, syslog_version='1', message required) Purpose: ensures clean coexistence and avoids double parsing
 filter: >
-  (evt.Parsed.program in ['sshd', 'sshd-session'] || evt.Parsed.program == 'file')
+  evt.Parsed.program in ['sshd', 'sshd-session']
   && evt.Parsed.syslog_version == '1'
+  && evt.Parsed.message != nil
 stage: s01-parse
 onsuccess: next_stage
 
